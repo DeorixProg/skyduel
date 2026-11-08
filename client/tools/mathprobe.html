@@ -1,7 +1,7 @@
 <!doctype html>
 <meta charset="utf-8" />
 <script type="module">
-  import { stepHashes } from "@skyduel/shared/determinism.js";
+  import { stepHashes } from "@skyduel/shared/determinism.ts";
   import { probe } from "./mathprobe.js";
 
   window.__probe = { math: probe(), steps: stepHashes() };

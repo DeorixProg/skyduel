@@ -4,7 +4,7 @@
 <canvas id="c"></canvas>
 <script type="module">
   // Renders the vector art from src/render/draw.js into one sprite sheet (2x resolution).
-  import { drawBalloon, drawBullet, drawPickup, drawShip } from "/src/render/draw.js";
+  import { drawBalloon, drawBullet, drawPickup, drawShip } from "/src/render/draw.ts";
 
   const CELL = 128, SCALE = 2;
   const COLORS = ["#c0392b", "#2c3e50", "#27ae60", "#d4ac0d", "#8e44ad", "#d35400"];
@@ -14,12 +14,12 @@
     cells.push([`ship${i}_thrust`, (ctx) => drawShip(ctx, { x: 0, y: 0, angle: 0, thrust: true }, { color, time: 0.013 })]);
   });
   const P = { x: 0, y: 0 };
-  cells.push(["bullet", (ctx) => drawBullet(ctx, { pos: P, angle: 0 })]);
-  cells.push(["bullet_homing", (ctx) => drawBullet(ctx, { pos: P, angle: 0, homing: {} })]);
-  cells.push(["balloon", (ctx) => drawBalloon(ctx, { pos: P, radius: 28 })]);
-  cells.push(["balloon_hunter", (ctx) => drawBalloon(ctx, { pos: P, radius: 28, homing: {} })]);
+  cells.push(["bullet", (ctx) => drawBullet(ctx, false, P, 0)]);
+  cells.push(["bullet_homing", (ctx) => drawBullet(ctx, true, P, 0)]);
+  cells.push(["balloon", (ctx) => drawBalloon(ctx, { radius: 28, hunter: false }, P)]);
+  cells.push(["balloon_hunter", (ctx) => drawBalloon(ctx, { radius: 28, hunter: true }, P)]);
   for (const effect of ["shield", "rapid", "homing"])
-    cells.push([`pickup_${effect}`, (ctx) => drawPickup(ctx, { pos: P, angle: 0, pickup: { effect } })]);
+    cells.push([`pickup_${effect}`, (ctx) => drawPickup(ctx, effect, P, 0)]);
 
   const COLS = 6;
   const c = document.getElementById("c");

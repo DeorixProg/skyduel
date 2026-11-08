@@ -1,4 +1,4 @@
-import { stepHashes } from "@skyduel/shared/determinism.js";
+import { stepHashes } from "@skyduel/shared/determinism.ts";
 import { chromium } from "playwright-core";
 import { probe } from "../client/tools/mathprobe.js";
 

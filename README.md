@@ -13,12 +13,14 @@
 | 3 | `lab-03` | завантаження ассетів з прогресом, повторами і abort, спрайти, Web Audio, шина подій, лобі |
 | 4 | `lab-04` | Node-сервер: npm workspaces, HTTP API, кімнати, WebSocket-чат, ліміти, логи матчів потоками |
 | 5 | `lab-05` | авторитетний сервер 30 Гц, спільна симуляція, передбачення і звірка, інтерполяція, бінарний протокол, netgraph |
+| 6 | `lab-06` | TypeScript strict у всіх пакетах, Zod на кожній межі, branded id, вичерпні `switch`, CI з typecheck |
 
 ## Запуск
 
 ```bash
 npm install
 npm run dev        # сервер :8080 + Vite :5173 → http://localhost:5173
+npm run typecheck  # tsc --noEmit у shared, server, client
 npm test           # тести shared + server
 npm run lint       # Biome: лінтер + форматер
 npm run build && npm start   # production: сервер віддає зібраний клієнт на :8080
@@ -987,3 +989,186 @@ input-а, яким вона випущена. Сервер записує той
   - ліміт черги;
   - точний таймер;
 - точність `dmath`.
+
+---
+
+## Лабораторна 6. TypeScript для протоколу і симуляції
+
+Усі три пакети тепер на TypeScript у режимі `strict` + `noUncheckedIndexedAccess`.
+
+| Показник | Значення |
+|---|---|
+| `npm run typecheck` | 0 помилок у `shared/` (src + tests), `server/`, `client/` (+ `vite.config.ts`) |
+| `any` | **0** |
+| приведень `as` | **1** (`shared/src/types.ts`, створення branded-типу, з коментарем); `as const` — не приведення |
+| тести | 18 (`shared`) + 24 (`server`) = **42**, усі зелені |
+| детермінізм | хеш скриптового матчу `c82272da` однаковий у Node і в Chrome; 5000 кроків TS-версії **побітово** збігаються з JS-версією `lab-05` |
+| CI | `.github/workflows/ci.yml`: `npm ci` → `typecheck` → `lint` → `test` → `build` на кожен push і PR |
+
+### Як влаштовано
+
+**Конфіги:**
+- `tsconfig.base.json`: `strict`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `erasableSyntaxOnly`,
+  `allowImportingTsExtensions`, `noEmit`, `module: nodenext`.
+- Кожен пакет має власний `tsconfig.json`; клієнт використовує `module: preserve` / `moduleResolution: bundler`.
+- `vite.config.ts` перевіряється окремим `tsconfig.node.json`, щоб Node-глобали (`process`, `Buffer`)
+  не потрапили в браузерний код.
+
+**Без збірки:**
+- **Сервер** запускається просто `node src/index.ts`: Node 22.18+/24 сам знімає типи. Тому
+  `erasableSyntaxOnly` забороняє все, що не можна просто стерти: `enum`, `namespace`, параметри-властивості.
+- **Клієнт** — Vite. TypeScript тут лише перевіряє (`tsc --noEmit`), а не компілює.
+
+**`shared/` без DOM і без Node — тепер це гарантує компілятор.** У `shared/tsconfig.json` лише
+`lib: ["es2023"]` і `types: []`, а `src/env.d.ts` оголошує тільки те, що однаково є в обох
+середовищах: `EventTarget`, `CustomEvent`, `AbortSignal`, `TextEncoder/Decoder`. Згадка `document`
+чи `Buffer` у симуляції — помилка `tsc`.
+
+**Branded-типи** (`shared/src/types.ts`): `EntityId`, `Tick`, `Seq`, `PlayerId`.
+- Під час виконання це звичайні `number`, але передати `seq` туди, де чекають `EntityId`, — помилка компіляції.
+- Створити branded-значення можна лише через `entityId(n)`, `seq(n)`, … Їх викликають довірені
+  джерела: лічильник `World`, декодер після перевірки діапазону, Zod після валідації (`.transform(seq)`).
+
+**`readonly`:**
+- `Vector2` має `readonly x, y`;
+- знімок (`Snapshot`, `EntityData`) повністю `readonly`;
+- вхід — `readonly Input[]`.
+
+**Сутності знімка** — об'єднання з полем `kind`: `ShipData | BulletData | BalloonData | PickupData`.
+Так само й класи симуляції: `AnyEntity = Ship | Bullet | Balloon | Pickup | Explosion`,
+`readonly kind = "ship"`. `world.ofKind("bullet")` повертає `Generator<Bullet>`, а не `Entity`.
+
+**Протокол** (`shared/src/protocol.ts`) — єдине джерело правди:
+- Схеми Zod для кожного повідомлення в обидва боки. Типи виводяться зі схем:
+  - `ClientMessage = z.infer<…>` — що сервер отримає після розбору;
+  - `ClientMessageIn = z.input<…>` — що клієнт може надіслати.
+- `parseClientMessage(data: unknown)` і `parseServerMessage(data: unknown)` **ніколи не кидають винятків**,
+  а повертають `Result<T, { code, reason }>`. Сервер записує помилку в лог і закриває сокет з кодом
+  (4000/4001/4002), як у лабі 4.
+- Ручний валідатор лаби 4 видалено.
+- Клієнт тепер теж перевіряє **кожне** повідомлення сервера: раніше це був голий `JSON.parse`.
+
+**Кодеки** реалізують спільний інтерфейс `Codec` (`binaryCodec`, `jsonCodec`).
+- Бінарний декодер сам перевіряє довжину, версію, `kind`, кінечність чисел, діапазон кута і точну
+  довжину кадру.
+- JSON-кодек перевіряє знімок схемою Zod.
+
+**Вичерпні `switch`.** Кожен `switch` по `type` або `kind` має `default: assertNever(x)`:
+- обробник повідомлень клієнта на сервері;
+- `takeSnapshot`, бінарний енкодер і декодер;
+- `deriveEvents` і рендер мережевої гри;
+- рендер локальної гри.
+
+Новий тип повідомлення чи сутності без гілки — це помилка `tsc`.
+
+**Сервер і клієнт:**
+- `Room extends EventEmitter<RoomEvents>` і `RoomManager extends EventEmitter<ManagerEvents>`:
+  `room.on("chat", (player, text) => …)` знає типи аргументів.
+- Подій симуляції, лобі і з'єднання передаються через типізовану `Bus<Events>` (`shared/src/bus.ts`).
+- Конфіг з оточення проходить через одну схему Zod (`ConfigSchema` → `ServerConfig`): коерція,
+  діапазони, значення за замовчуванням.
+- Кожен `catch` має `err: unknown`; для логів є `errFields(err)` і `errMessage(err)`.
+- Відповідь `POST /api/rooms`, атлас спрайтів, маніфест, список кімнат і конфіг арени —
+  усе приходить по мережі як `unknown` і проходить Zod до використання.
+
+### Що знайшов TypeScript (і чого не знайшов)
+
+1. **`Map.get` без перевірки.**
+   - `Bullet.onHit` робив `world.get(this.ownerId)` і передавав результат у `damage()` як
+     «атакувальника». Якщо стрілець уже вийшов (його корабель прибрано), у JS це був `undefined`,
+     і рахунок тихо не нараховувався нікому. Тепер тип `AnyEntity | undefined` змушує явно
+     перевірити `owner?.kind === "ship" ? owner : null`.
+   - Подібне знайшлося в 6 місцях клієнта: `buffer[i - 1]`, `explosions[0]`, `feed.at(-1)` під
+     `noUncheckedIndexedAccess`.
+2. **`rng.pick([])` повертав `undefined`.** Тепер `pick<T>(items: readonly T[]): T` кидає `RangeError`.
+3. **Сентинел `0` замість «немає атакувальника».** Події `hit` і `exploded` мали `by: attacker?.id ?? 0`.
+   Із branded `EntityId` нуль — не id, тож компілятор не пропустив, і тепер там `EntityId | null`.
+   Кілл-фід перевіряв `by ? … : …` і з нулем працював випадково.
+4. **Monkey-patching `ws.state`.** Сервер дописував власне поле в об'єкт `WebSocket`, і TS
+   цього не дозволив. Стан з'єднання переїхав у `Map<WebSocket, Conn>`, а при закритті сокета
+   запис видаляється. Раніше він жив, доки жив об'єкт сокета.
+5. **Необроблене `null`.**
+   - `document.getElementById("game")` міг повернути `null`. Тепер є `$(root, "#game", HTMLCanvasElement)`
+     з перевіркою `instanceof`.
+   - `canvas.getContext("2d")` теж міг повернути `null`.
+   - `req.url` в `node:http` має тип `string | undefined`.
+6. **Помилки невідомої форми.** У `catch (err)` код читав `err.code === "ENOENT"`, `err.name`,
+   `err.message`. Під `unknown` довелося звужувати: `err instanceof Error && "code" in err`. Колбек
+   `isRetryable` перевіряв `err?.name === "TimeoutError"`, а тепер `err instanceof DOMException`.
+7. **Розбіжності форми між пакетами.** Тести лаби 4 створювали `room.join({ id, name })`, а з лаби 5
+   кімнаті потрібні ще `ws`, `shipId` і `color`. Тип `RoomPlayer` показав, що фейки в тестах застаріли.
+8. **Чого TS НЕ знайшов — `this`.** `Ship.fire(this: Ship)` тепер оголошує свій receiver.
+   Від'єднаний виклик `const f = player.fire; f()` дає помилку **TS2684**, але
+   `window.addEventListener("keydown", player.fire)` **компілюється без помилки**. TypeScript
+   порівнює `this` слухача DOM (`Window`) і методу бівалентно. Баг лаби 2 типи ловлять лише
+   частково (`?bug=this` усе ще відтворює його). Лікує цей баг архітектура (input як дані), а не
+   компілятор.
+
+**Що зловили тести і перевірки, а не типи** (теж під час міграції):
+- **Регресія детермінізму.** `World.#spawnPickups` переписав як
+  `new Pickup({ pos: this.findSafeSpot(120), effect: this.rng.pick(EFFECTS) })`. Порядок обчислення
+  властивостей поміняв місцями два виклики seeded-генератора, і **всі** матчі після першого бонусу
+  стали іншими. Типи тут безсилі (обидва варіанти коректні), а покрокове порівняння з JS-версією `lab-05`
+  показало розбіжність на 180-му кроці. Виправлено і закріплено тестом «золотий хеш» `c82272da`.
+- **Переповнення кута.** Під час типізації декодера додав перевірку діапазону кута. Вона виявила, що
+  бонус, який обертається, має кут, що росте без меж. Після ~3.27 рад `setInt16` тихо обрізав
+  значення до сміття. Тепер `takeSnapshot` нормалізує кут.
+
+### Три типи простими словами
+
+**1. `Brand<T, B>`** — «число з паспортом».
+
+```ts
+declare const brand: unique symbol;
+type Brand<T, B extends string> = T & { readonly [brand]: B };
+type EntityId = Brand<number, "EntityId">;
+type Seq = Brand<number, "Seq">;
+```
+
+У рантаймі `EntityId` і `Seq` — звичайні числа, а поле `[brand]` не існує. Але компілятор вважає,
+що в кожного «паспорт» свій, тож `world.get(input.seq)` не скомпілюється. Отримати такий тип можна лише
+через функцію-«паспортний стіл» (`seq(n)`). Це і є єдине `as` у проєкті.
+
+**2. Об'єднання з полем `kind` + `assertNever`.**
+
+```ts
+type EntityData = ShipData | BulletData | BalloonData | PickupData; // у кожного свій kind
+switch (e.kind) {
+  case "ship":   e.hp; break;          // тут e — ShipData
+  case "bullet": e.owner; break;       // тут e — BulletData
+  case "balloon": case "pickup": break;
+  default: assertNever(e);             // сюди можна потрапити лише якщо e: never
+}
+```
+
+Перевіривши `kind`, TypeScript знає, яка це сутність, тож `e.owner` у кулі можна, а в аеростата
+не можна. `default` приймає лише `never`, тобто «тут не може бути нічого». Якщо додати
+`| MineData`, компілятор покаже кожен `switch`, який забув про міни.
+
+**3. `ServerMessageOf<T>` і `Bus<Events>`** — подія, що знає свій вміст.
+
+```ts
+type ServerMessage = z.infer<typeof ServerMessageSchema>;          // тип виведено зі схеми
+type ServerMessageOf<T extends ServerMessage["type"]> = Extract<ServerMessage, { type: T }>;
+conn.on("chat", (m) => m.text);        // m: ServerMessageOf<"chat">
+conn.on("roster", (m) => m.players);   // m: ServerMessageOf<"roster">
+```
+
+Одна схема Zod дає і перевірку в рантаймі, і тип. `Extract` «вирізає» з об'єднання варіант з потрібним
+`type`, тож обробник `chat` бачить `text`, а обробник `roster` — `players`. `Bus<Events>` робить те
+саме для внутрішніх подій: `bus.emit("hit", { target })` без поля `hp` — помилка компіляції.
+
+### Фреймворк для лобі та HUD: не взяв
+
+Лобі — це ~120 рядків DOM (список кімнат, поле імені, кнопки). Панель кімнати — ~100 рядків.
+HUD малюється на канвасі. Стан цих екранів простий і вже типізований:
+- `Bus<LobbyEvents>`;
+- `conn.on(...)`;
+- типобезпечний `$()` замість `querySelector`.
+
+Svelte/Vue/React дали б декларативний рендер списку і реактивність. Але ціною ще одного
+компілятора у Vite, ще однієї моделі життєвого циклу поруч із ігровим циклом на rAF і +30–45 КБ
+бандла (React + ReactDOM gzip ≈ 45 КБ). А головне — екрани, де фреймворк реально допоміг би,
+у цій грі займають 5 секунд до старту бою. Поточний бандл — 148.8 КБ (47.3 КБ gzip), і найбільша
+його частина тепер Zod. Тому якщо щось і оптимізувати, то перейти на `zod/mini`, а не додавати
+фреймворк.

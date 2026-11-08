@@ -1,13 +1,17 @@
 {
   "name": "@skyduel/shared",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "description": "Simulation, protocol and codecs shared by the client and the server (no DOM, no Node built-ins)",
   "exports": {
     "./*": "./src/*"
   },
   "scripts": {
-    "test": "node --test test/"
+    "test": "node --test \"test/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
   }
 }

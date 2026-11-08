@@ -3,7 +3,7 @@
 <title>determinism check</title>
 <pre id="out">running…</pre>
 <script type="module">
-  import { scriptedRunHash } from "@skyduel/shared/determinism.js";
+  import { scriptedRunHash } from "@skyduel/shared/determinism.ts";
 
   window.__det = scriptedRunHash();
   document.getElementById("out").textContent = JSON.stringify(window.__det);
