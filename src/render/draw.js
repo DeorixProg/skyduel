@@ -119,3 +119,106 @@ export function drawHud(ctx, stats, extra = []) {
   });
   ctx.restore();
 }
+
+export function drawBullet(ctx, b, pos = b.pos, angle = b.angle) {
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = b.homing ? "#8e44ad" : "#212121";
+  ctx.fillRect(-5, -1.5, 10, 3);
+  ctx.restore();
+}
+
+export function drawBalloon(ctx, b, pos = b.pos) {
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  ctx.fillStyle = "rgba(0,0,0,0.15)"; // shadow
+  ctx.beginPath();
+  ctx.ellipse(6, 8, b.radius, b.radius * 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = b.homing ? "#7f8c8d" : "#95a5a6";
+  ctx.beginPath();
+  ctx.ellipse(0, 0, b.radius, b.radius * 0.8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#566573";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = b.homing ? "#c0392b" : "#566573"; // hunters have a red stripe
+  ctx.fillRect(-b.radius * 0.7, -2, b.radius * 1.4, 4);
+  ctx.restore();
+}
+
+const PICKUP_COLORS = { shield: "#2980b9", rapid: "#e67e22", homing: "#8e44ad" };
+const PICKUP_LETTER = { shield: "S", rapid: "R", homing: "H" };
+
+export function drawPickup(ctx, p, pos = p.pos, angle = p.angle) {
+  ctx.save();
+  ctx.translate(pos.x, pos.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = PICKUP_COLORS[p.pickup.effect];
+  ctx.fillRect(-11, -11, 22, 22);
+  ctx.strokeStyle = "#fff";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(-11, -11, 22, 22);
+  ctx.rotate(-angle);
+  ctx.fillStyle = "#fff";
+  ctx.font = "bold 14px system-ui";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(PICKUP_LETTER[p.pickup.effect], 0, 1);
+  ctx.restore();
+}
+
+export function drawExplosion(ctx, e) {
+  const k = Math.max(0, e.ttl / 0.9);
+  ctx.fillStyle = `rgba(${200 + 55 * k},${80 + 120 * k},30,${k})`;
+  for (const p of e.particles) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * (0.5 + k), 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+export function drawShipEntity(ctx, s, time, pos = s.pos, angle = s.angle) {
+  if (s.down) return;
+  const view = { x: pos.x, y: pos.y, angle, thrust: s.thrust };
+  drawShip(ctx, view, { color: s.color, time });
+  if (s.effects.has("shield")) {
+    ctx.strokeStyle = "rgba(41,128,185,0.8)";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, s.radius + 8, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  // name + hp bar
+  ctx.fillStyle = "rgba(0,0,0,0.4)";
+  ctx.fillRect(pos.x - 20, pos.y - 34, 40, 5);
+  ctx.fillStyle = s.hp > 50 ? "#27ae60" : s.hp > 25 ? "#f39c12" : "#c0392b";
+  ctx.fillRect(pos.x - 20, pos.y - 34, 40 * (s.hp / 100), 5);
+  ctx.fillStyle = "#1b2631";
+  ctx.font = "12px system-ui";
+  ctx.textAlign = "center";
+  ctx.fillText(s.name, pos.x, pos.y - 39);
+  ctx.textAlign = "start";
+}
+
+export function drawScoreboard(ctx, ships, viewWidth) {
+  const rows = [...ships].sort((a, b) => b.score - a.score);
+  ctx.save();
+  ctx.font = "14px ui-monospace, Consolas, monospace";
+  const w = 200;
+  ctx.fillStyle = "rgba(0,0,0,0.55)";
+  ctx.fillRect(viewWidth - w - 8, 8, w, 14 + rows.length * 18);
+  rows.forEach((s, i) => {
+    ctx.fillStyle = s.color;
+    ctx.fillRect(viewWidth - w, 17 + i * 18, 10, 10);
+    ctx.fillStyle = "#ecf0f1";
+    const fx = [...s.effects.keys()].map((k) => k[0].toUpperCase()).join("");
+    ctx.fillText(
+      `${s.name.padEnd(9)} ${String(s.score).padStart(3)} ${fx}`,
+      viewWidth - w + 16,
+      27 + i * 18,
+    );
+  });
+  ctx.restore();
+}

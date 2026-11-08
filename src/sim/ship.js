@@ -15,6 +15,8 @@ export const SHIP = Object.freeze({
   DRAG: 0.9,
   MAX_SPEED: 420,
   RADIUS: 18,
+  MAX_HP: 100,
+  COLLISION_DAMAGE: 34,
 });
 
 export function createShip(x = ARENA.width / 2, y = ARENA.height / 2, angle = -Math.PI / 2) {

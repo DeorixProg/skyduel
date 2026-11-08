@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-  "files": { "includes": ["**", "!**/dist", "!**/node_modules", "!**/coverage", "!**/*.json"] },
+  "files": { "includes": ["**", "!**/dist", "!**/node_modules", "!**/coverage", "!**/*.json", "!**/*.md"] },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2, "lineWidth": 100 },
   "javascript": { "formatter": { "quoteStyle": "double", "semicolons": "always" } },
   "linter": { "enabled": true, "rules": { "preset": "recommended" } }
