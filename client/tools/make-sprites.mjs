@@ -2,7 +2,7 @@
 import fs from "node:fs";
 import { chromium } from "playwright-core";
 
-const browser = await chromium.launch({ channel: "chrome" });
+const browser = await chromium.launch({ channel: "chrome", args: ["--mute-audio"] });
 const page = await browser.newPage();
 await page.goto("http://localhost:5173/tools/make-sprites.html");
 const { png, atlas } = await page.waitForFunction(() => window.__sheet).then((h) => h.jsonValue());

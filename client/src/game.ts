@@ -110,12 +110,20 @@ export function startGame({
     input.endStep();
   }
 
-  function lerpPos(e: AnyEntity, alpha: number): Vector2 {
+  // one scratch point reused for every entity, every frame: no Vector2 per draw (Lab 7)
+  const scratch = { x: 0, y: 0 };
+  function lerpPos(e: AnyEntity, alpha: number): { x: number; y: number } {
     const a = e.prevPos ?? e.pos;
     const dx = wrapDelta(a.x, e.pos.x, ARENA.width);
     const dy = wrapDelta(a.y, e.pos.y, ARENA.height);
-    if (dx * dx + dy * dy > 200 * 200) return e.pos; // respawn teleport: don't smear
-    return new Vector2(a.x + dx * alpha, a.y + dy * alpha);
+    if (dx * dx + dy * dy > 200 * 200) {
+      scratch.x = e.pos.x; // respawn teleport: don't smear
+      scratch.y = e.pos.y;
+    } else {
+      scratch.x = a.x + dx * alpha;
+      scratch.y = a.y + dy * alpha;
+    }
+    return scratch;
   }
 
   function render(alpha: number, stats: Readonly<LoopStats>): void {
@@ -168,7 +176,10 @@ export function startGame({
       `sprites  ${sprites.usingSheet ? "sheet" : "vector fallback"}`,
       `mode     ${EXP}`,
     ]);
-    drawScoreboard(ctx, world.ofKind("ship"), view.width);
+    const rows = [];
+    for (const s of world.ofKind("ship"))
+      rows.push({ name: s.name, color: s.color, score: s.score, effects: s.effects.keys() });
+    drawScoreboard(ctx, rows, view.width);
     hud.draw(ctx, view);
   }
 
@@ -188,7 +199,11 @@ export function startGame({
   };
 }
 
-function drawShipOverlay(ctx: CanvasRenderingContext2D, s: Ship, pos: Vector2): void {
+function drawShipOverlay(
+  ctx: CanvasRenderingContext2D,
+  s: Ship,
+  pos: { x: number; y: number },
+): void {
   if (s.effects.has("shield")) {
     ctx.strokeStyle = "rgba(41,128,185,0.8)";
     ctx.lineWidth = 3;

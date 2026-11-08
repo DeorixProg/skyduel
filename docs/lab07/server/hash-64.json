@@ -1,0 +1,45 @@
+{
+  "label": "hash-64",
+  "bots": 64,
+  "seconds": 45,
+  "entities": 142,
+  "ticks": 1351,
+  "tickP50": 1.08,
+  "tickP95": 1.93,
+  "tickP99": 2.64,
+  "tickMax": 9.66,
+  "top": [
+    {
+      "f": "spatialHashPairs spatial.ts",
+      "ms": 92
+    },
+    {
+      "f": "next bot.ts",
+      "ms": 61
+    },
+    {
+      "f": "post node:inspector",
+      "ms": 53
+    },
+    {
+      "f": "ofKind world.ts",
+      "ms": 36
+    },
+    {
+      "f": "resolveCollisions collision.ts",
+      "ms": 35
+    },
+    {
+      "f": "(garbage collector) ",
+      "ms": 31
+    },
+    {
+      "f": "step match.ts",
+      "ms": 29
+    },
+    {
+      "f": "(program) ",
+      "ms": 27
+    }
+  ]
+}

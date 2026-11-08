@@ -16,7 +16,7 @@ export interface ScoreRow {
   readonly name: string;
   readonly color: string;
   readonly score: number;
-  readonly effects: { keys(): Iterable<string> };
+  readonly effects: Iterable<string>;
 }
 
 const clouds = makeClouds(14, 7);
@@ -35,14 +35,22 @@ function makeClouds(n: number, seed: number): Array<{ x: number; y: number; r: n
   }));
 }
 
-export function drawBackground(
-  ctx: Ctx,
-  sky: readonly [string, string] = ["#5b9bd5", "#a9d2f0"],
-): void {
+/** One CanvasGradient per (context, sky) instead of a new one every frame (Lab 7). */
+const gradients = new WeakMap<Ctx, { sky: readonly [string, string]; g: CanvasGradient }>();
+function skyGradient(ctx: Ctx, sky: readonly [string, string]): CanvasGradient {
+  const hit = gradients.get(ctx);
+  if (hit?.sky === sky) return hit.g; // same array → same gradient, no string key per frame
   const g = ctx.createLinearGradient(0, 0, 0, ARENA.height);
   g.addColorStop(0, sky[0]);
   g.addColorStop(1, sky[1]);
-  ctx.fillStyle = g;
+  gradients.set(ctx, { sky, g });
+  return g;
+}
+
+const DEFAULT_SKY: readonly [string, string] = ["#5b9bd5", "#a9d2f0"];
+
+export function drawBackground(ctx: Ctx, sky: readonly [string, string] = DEFAULT_SKY): void {
+  ctx.fillStyle = skyGradient(ctx, sky);
   ctx.fillRect(0, 0, ARENA.width, ARENA.height);
 
   // grid: makes motion readable even over an empty sky
@@ -227,7 +235,8 @@ export function drawScoreboard(ctx: Ctx, ships: Iterable<ScoreRow>, viewWidth: n
     ctx.fillStyle = s.color;
     ctx.fillRect(viewWidth - w, 17 + i * 18, 10, 10);
     ctx.fillStyle = "#ecf0f1";
-    const fx = [...s.effects.keys()].map((k) => (k[0] ?? "").toUpperCase()).join("");
+    let fx = "";
+    for (const k of s.effects) fx += (k[0] ?? "").toUpperCase();
     ctx.fillText(
       `${s.name.padEnd(9)} ${String(s.score).padStart(3)} ${fx}`,
       viewWidth - w + 16,

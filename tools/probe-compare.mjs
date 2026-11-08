@@ -2,7 +2,7 @@ import { stepHashes } from "@skyduel/shared/determinism.ts";
 import { chromium } from "playwright-core";
 import { probe } from "../client/tools/mathprobe.js";
 
-const browser = await chromium.launch({ channel: "chrome" });
+const browser = await chromium.launch({ channel: "chrome", args: ["--mute-audio"] });
 const page = await browser.newPage();
 await page.goto("http://localhost:5173/tools/mathprobe.html");
 const b = await page.waitForFunction(() => window.__probe).then((h) => h.jsonValue());

@@ -1,13 +1,13 @@
 {
   "name": "@skyduel/server",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "main": "src/index.ts",
   "scripts": {
     "dev": "node --env-file-if-exists=.env --watch src/index.ts",
     "start": "node src/index.ts",
-    "test": "node --test \"test/**/*.test.ts\"",
+    "test": "vitest run --project server --root ..",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

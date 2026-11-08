@@ -1,0 +1,45 @@
+{
+  "label": "naive-256-botcache",
+  "bots": 256,
+  "seconds": 45,
+  "entities": 871,
+  "ticks": 1352,
+  "tickP50": 6.16,
+  "tickP95": 15.92,
+  "tickP99": 18.71,
+  "tickMax": 27.92,
+  "top": [
+    {
+      "f": "wrapDelta arena.ts",
+      "ms": 2369
+    },
+    {
+      "f": "naivePairs collision.ts",
+      "ms": 2124
+    },
+    {
+      "f": "overlaps collision.ts",
+      "ms": 1402
+    },
+    {
+      "f": "resolveCollisions collision.ts",
+      "ms": 1061
+    },
+    {
+      "f": "onHit entities.ts",
+      "ms": 456
+    },
+    {
+      "f": "emit bus.ts",
+      "ms": 326
+    },
+    {
+      "f": "damage entities.ts",
+      "ms": 305
+    },
+    {
+      "f": "step world.ts",
+      "ms": 256
+    }
+  ]
+}

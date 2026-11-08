@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
-import { describe, test } from "node:test";
+import { describe, test } from "vitest";
 import * as binary from "../src/codec/binary.ts";
 import { jsonCodec } from "../src/codec/json.ts";
 import { scriptedRunHash } from "../src/determinism.ts";
 import { DT, reconcile, replay } from "../src/net/predict.ts";
 import { parseClientMessage } from "../src/protocol.ts";
+import { naivePairs } from "../src/sim/collision.ts";
 import { Ship } from "../src/sim/entities.ts";
 import { createShip, integrate, SIM_FLAGS } from "../src/sim/ship.ts";
+import { spatialHashPairs } from "../src/sim/spatial.ts";
 import { Vector2 } from "../src/sim/vector.ts";
 import { World } from "../src/sim/world.ts";
 import { hashSnapshot, takeSnapshot } from "../src/snapshot.ts";
@@ -24,8 +26,8 @@ describe("shared imports in Node", () => {
 });
 
 /** Same seed + same scripted inputs → same world, step by step. */
-function runMatch(seed: number, steps: number) {
-  const w = new World({ seed });
+function runMatch(seed: number, steps: number, collide = naivePairs) {
+  const w = new World({ seed, collide });
   const a = w.spawn(new Ship({ pos: new Vector2(400, 450), name: "a" }));
   const b = w.spawn(new Ship({ pos: new Vector2(1200, 450), angle: Math.PI, name: "b" }));
   w.populate({ balloons: 8, hunters: 3 });
@@ -52,6 +54,9 @@ describe("determinism", () => {
     const r2 = runMatch(42, 1000);
     assert.deepEqual(r1.hashes, r2.hashes);
     assert.deepEqual(r1.final, r2.final);
+  });
+  test("spatial hash gives the SAME world as the naive O(n²) pass, bit for bit", () => {
+    assert.deepEqual(runMatch(42, 1500, spatialHashPairs), runMatch(42, 1500, naivePairs));
   });
   test("a different seed gives a different world", () => {
     assert.notDeepEqual(runMatch(1, 200).hashes, runMatch(2, 200).hashes);

@@ -1,0 +1,88 @@
+{
+  "totalAllocKb": 56469,
+  "label": "after",
+  "seconds": 30,
+  "throttle": 1,
+  "frames": {
+    "n": 5492,
+    "mean": 5.555735615440912,
+    "sd": 0.2062609454085728,
+    "p50": 5.599999997764826,
+    "p95": 5.799999997019768,
+    "p99": 6,
+    "max": 9.100000001490116
+  },
+  "measures": {},
+  "gc": {
+    "minor": {
+      "n": 25,
+      "ms": 15.015,
+      "max": 1.177
+    },
+    "major": {
+      "n": 19,
+      "ms": 35.681999999999995,
+      "max": 2.98
+    },
+    "majorKinds": {
+      "finalize incremental marking via task heap 6→4 MB": 5,
+      "finalize incremental marking via task heap 5→4 MB": 10,
+      "finalize incremental marking via task heap 4→4 MB": 3,
+      "sampling profiler heap 5→4 MB": 1
+    }
+  },
+  "gcSelfMs": 76,
+  "topAlloc": [
+    {
+      "f": "render index-_1E4eYxf.js:8971",
+      "kb": 19579
+    },
+    {
+      "f": "decodeSnapshot index-_1E4eYxf.js:8266",
+      "kb": 6840
+    },
+    {
+      "f": "sampleRemote index-_1E4eYxf.js:8929",
+      "kb": 4307
+    },
+    {
+      "f": "drawBackground index-_1E4eYxf.js:7158",
+      "kb": 3698
+    },
+    {
+      "f": "next :0",
+      "kb": 3634
+    },
+    {
+      "f": "simulate index-_1E4eYxf.js:8826",
+      "kb": 2465
+    }
+  ],
+  "topSelf": [
+    {
+      "f": "drawImage :0",
+      "ms": 194
+    },
+    {
+      "f": "fillText :0",
+      "ms": 67
+    },
+    {
+      "f": "render index-_1E4eYxf.js:8971",
+      "ms": 62
+    },
+    {
+      "f": "measureText :0",
+      "ms": 57
+    },
+    {
+      "f": "arc :0",
+      "ms": 54
+    },
+    {
+      "f": "requestAnimationFrame :0",
+      "ms": 48
+    }
+  ],
+  "errors": []
+}

@@ -14,11 +14,19 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - name: Typecheck (tsc --noEmit, strict, all packages)
+      - name: Typecheck (tsc --noEmit, strict, all packages + e2e)
         run: npm run typecheck
-      - name: Lint (Biome)
+      - name: Lint (Biome, incl. noFloatingPromises)
         run: npm run lint
-      - name: Unit tests (shared + server)
+      - name: Unit + property tests (Vitest, all packages)
         run: npm test
+      - name: Coverage of shared/ (fails under 85 %)
+        run: npm run coverage
       - name: Build client
         run: npm run build
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end (two browsers, one room)
+        run: npm run e2e
+        env:
+          CI: "true"

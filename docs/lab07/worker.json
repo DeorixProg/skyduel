@@ -1,0 +1,26 @@
+[
+  {
+    "particles": 300,
+    "mainThreadMs": 0.0023,
+    "workerMainCostMs": 0.0093,
+    "workerRoundTripMs": 0.048
+  },
+  {
+    "particles": 2000,
+    "mainThreadMs": 0.015,
+    "workerMainCostMs": 0.0087,
+    "workerRoundTripMs": 0.055
+  },
+  {
+    "particles": 20000,
+    "mainThreadMs": 0.1343,
+    "workerMainCostMs": 0.011,
+    "workerRoundTripMs": 0.152
+  },
+  {
+    "particles": 200000,
+    "mainThreadMs": 1.067,
+    "workerMainCostMs": 0.0127,
+    "workerRoundTripMs": 1.152
+  }
+]

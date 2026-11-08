@@ -1,7 +1,7 @@
 {
   "name": "skyduel",
   "private": true,
-  "version": "0.6.0",
+  "version": "0.7.0",
   "type": "module",
   "description": "SkyDuel — real-time multiplayer biplane dogfight in the browser",
   "workspaces": [
@@ -15,17 +15,24 @@
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w client",
     "start": "npm start -w server",
-    "test": "npm test -w shared -w server",
+    "test": "vitest run",
     "lint": "biome check .",
     "format": "biome format --write .",
-    "typecheck": "npm run typecheck -w shared -w server -w client",
-    "check": "npm run typecheck && npm run lint && npm test && npm run build"
+    "typecheck": "npm run typecheck -w shared -w server -w client && tsc -p e2e/tsconfig.json",
+    "check": "npm run typecheck && npm run lint && npm test && npm run build",
+    "coverage": "vitest run --coverage --project shared",
+    "e2e": "playwright test"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
+    "@playwright/test": "^1.65.0",
     "@types/node": "^26.6.6",
     "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^5.1.0",
+    "fast-check": "^4.10.2",
+    "happy-dom": "^21.0.4",
     "playwright-core": "^1.65.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
   }
 }

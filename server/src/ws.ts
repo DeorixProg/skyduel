@@ -113,11 +113,12 @@ export function attachWebSocket({
     const arena = loadArena(room.arena, config.staticDir);
     const match = new Match({
       arena,
+      collision: config.collision,
       seed: (Math.random() * 0x100000000) >>> 0, // the server picks the seed; the sim never calls Math.random
       onSnapshot(snap, players) {
         let jsonText: string | null = null;
         for (const [id, p] of players) {
-          const ws = room.players.get(id)?.ws;
+          const ws = room.players.get(id)?.ws ?? undefined;
           const conn = ws && conns.get(ws);
           if (!ws || !conn) continue;
           let frame: Frame;
@@ -135,7 +136,7 @@ export function attachWebSocket({
     room.match = match;
     room.on("close", () => match.stop());
     const broadcast = (msg: ServerMessage, opts?: { critical?: boolean }) => {
-      for (const p of room.players.values()) send(p.ws, msg, opts);
+      for (const p of room.players.values()) if (p.ws) send(p.ws, msg, opts);
     };
     room.on("join", () =>
       broadcast({ type: "roster", players: room.roster() }, { critical: true }),

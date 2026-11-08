@@ -6,9 +6,9 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { after, before, describe, test } from "node:test";
 import { CLOSE, parseClientMessage } from "@skyduel/shared/protocol.ts";
 import { entityId, playerId } from "@skyduel/shared/types.ts";
+import { afterAll as after, beforeAll as before, describe, test } from "vitest";
 import { WebSocket } from "ws";
 import { type App, createApp } from "../src/app.ts";
 import { loadConfig } from "../src/config.ts";
@@ -115,7 +115,7 @@ describe("match log stream", () => {
 describe("config (zod)", () => {
   test("rejects invalid values with a clear message", () => {
     assert.throws(() => loadConfig({ PORT: "abc" }), /PORT/);
-    assert.throws(() => loadConfig({ MAX_PLAYERS_PER_ROOM: "1000" }), /MAX_PLAYERS_PER_ROOM/);
+    assert.throws(() => loadConfig({ MAX_PLAYERS_PER_ROOM: "5000" }), /MAX_PLAYERS_PER_ROOM/);
     assert.equal(loadConfig({ PORT: "9000" }).port, 9000);
     assert.equal(loadConfig({ PORT: "" }).port, 8080); // empty = not set
   });
@@ -261,5 +261,37 @@ describe("server (integration)", () => {
       .map((l): unknown => JSON.parse(l))
       .map((e) => (e && typeof e === "object" && "type" in e ? e.type : null));
     assert.deepEqual(types, ["join", "chat", "leave", "close"]);
+  });
+});
+
+describe("bots", () => {
+  test("a room with only bots left is deleted", async () => {
+    const config = loadConfig({
+      LOG_DIR: mkdtempSync(path.join(os.tmpdir(), "skyduel-bots-")),
+      MAX_PLAYERS_PER_ROOM: "16",
+    });
+    const app = createApp({ config, logger: createLogger({ level: "silent" }) });
+    const { port } = await app.listen(0, "127.0.0.1");
+    const base = `http://127.0.0.1:${port}`;
+    const room: unknown = await (
+      await fetch(`${base}/api/rooms`, {
+        method: "POST",
+        body: JSON.stringify({ name: "Bots", maxPlayers: 8 }),
+      })
+    ).json();
+    assert.ok(room && typeof room === "object" && "id" in room && room.id === "bots");
+    const human = await TestClient.connect(`ws://127.0.0.1:${port}/ws`);
+    human.send({ type: "join", room: "bots", name: "Human" });
+    await human.waitFor("welcome");
+    const res = await fetch(`${base}/api/rooms/bots/bots`, {
+      method: "POST",
+      body: JSON.stringify({ count: 3 }),
+    });
+    assert.equal(res.status, 201);
+    await human.waitFor("roster", (m) => m.players.length === 4);
+    human.ws.close();
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(app.rooms.get("bots"), undefined);
+    await app.close();
   });
 });

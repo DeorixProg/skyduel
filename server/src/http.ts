@@ -4,6 +4,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
 import { performance } from "node:perf_hooks";
 import { pipeline } from "node:stream/promises";
+import { Bot } from "@skyduel/shared/bot.ts";
+import { playerId } from "@skyduel/shared/types.ts";
 import { z } from "zod";
 import type { ServerConfig } from "./config.ts";
 import { listReplays, replayPath } from "./log/replay.ts";
@@ -92,6 +94,11 @@ export function createHttpHandler({
     arena: z.enum(ARENAS).default("/assets/arenas/somme.json"),
   });
 
+  // event-loop utilisation over the window since the previous /api/stats call
+  let lastElu = performance.eventLoopUtilization();
+  const AddBots = z.object({ count: z.number().int().min(1).max(64).default(1) });
+  let nextBotId = 1_000_000; // bot player ids never collide with socket ids
+
   async function serveStatic(
     req: IncomingMessage,
     res: ServerResponse,
@@ -156,7 +163,9 @@ export function createHttpHandler({
         });
       }
       if (url.pathname === "/api/stats") {
-        const elu = performance.eventLoopUtilization();
+        const now = performance.eventLoopUtilization();
+        const elu = performance.eventLoopUtilization(now, lastElu);
+        lastElu = now;
         const matches = [...rooms].flatMap((r) =>
           r.match?.players.size ? [{ room: r.id, ...r.match.stats() }] : [],
         );
@@ -215,6 +224,29 @@ export function createHttpHandler({
         // as the client drains the socket, so memory stays flat.
         await pipeline(createReadStream(file), res);
         return;
+      }
+      const botsRoute = url.pathname.match(/^\/api\/rooms\/([\w-]+)\/bots$/);
+      if (botsRoute?.[1] && req.method === "POST") {
+        const room = rooms.get(botsRoute[1]);
+        if (!room?.match) return sendJson(res, 404, { error: "no such room" });
+        let json: unknown = {};
+        try {
+          const text = await readBody(req);
+          if (text) json = JSON.parse(text);
+        } catch {
+          return sendJson(res, 400, { error: "invalid JSON" });
+        }
+        const body = AddBots.safeParse(json);
+        if (!body.success) return sendJson(res, 400, { error: "count: 1..64" });
+        const added: string[] = [];
+        for (let i = 0; i < body.data.count && !room.full; i++) {
+          const id = playerId(nextBotId++);
+          const name = `Bot-${id % 1000}`;
+          const ship = room.match.addPlayer(id, name, new Bot({ phase: id * 17 }));
+          room.join({ id, name, ws: null, shipId: ship.id, color: ship.color });
+          added.push(name);
+        }
+        return sendJson(res, 201, { added, players: room.players.size });
       }
       if (url.pathname === "/api/slow" && config.enableSlowEndpoint) {
         // Lab 4 demo: block the event loop for 300 ms. Nothing else runs meanwhile.

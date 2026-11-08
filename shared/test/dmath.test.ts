@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { test } from "vitest";
 import { datan2, dcos, dhypot, dsin } from "../src/sim/dmath.ts";
 
 test("dsin/dcos match Math within 1e-12 on [-50, 50]", () => {

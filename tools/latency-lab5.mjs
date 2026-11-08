@@ -3,7 +3,11 @@
 import { chromium } from "playwright-core";
 
 const q = process.argv[2] ?? "lag=100";
-const browser = await chromium.launch({ channel: "chrome", headless: false });
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: ["--mute-audio"],
+  headless: false,
+});
 const page = await browser.newPage({ viewport: { width: 800, height: 500 } });
 await page.goto(`http://localhost:8080/?${q}`);
 await page.waitForSelector("#lobby .room");

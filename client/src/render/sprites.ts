@@ -47,6 +47,15 @@ export interface Sprites {
  * If the sheet or its atlas failed to load (404, corrupt JSON), every call falls
  * back to the vector drawing from Labs 1–2 — the game still starts.
  */
+// frame names built once: a template string per sprite per frame is garbage per frame
+const COLOR_INDEX: ReadonlyMap<string, number> = new Map(SHIP_COLORS.map((c, i) => [c, i]));
+const SHIP_FRAMES = SHIP_COLORS.map((_, i) => [`ship${i}`, `ship${i}_thrust`] as const);
+const PICKUP_FRAMES: Record<Effect, string> = {
+  shield: "pickup_shield",
+  rapid: "pickup_rapid",
+  homing: "pickup_homing",
+};
+
 export function createSprites(sheet: ImageBitmap | null, atlas: Atlas | null): Sprites {
   function frame(
     ctx: CanvasRenderingContext2D,
@@ -71,11 +80,10 @@ export function createSprites(sheet: ImageBitmap | null, atlas: Atlas | null): S
   return {
     usingSheet: Boolean(sheet && atlas),
     ship(ctx, ship, pose, time) {
-      const i = Math.max(
-        0,
-        SHIP_COLORS.findIndex((c) => c === ship.color),
-      );
-      if (frame(ctx, `ship${i}${ship.thrust ? "_thrust" : ""}`, pose.x, pose.y, pose.angle)) {
+      const i = COLOR_INDEX.get(ship.color) ?? 0;
+      if (
+        frame(ctx, SHIP_FRAMES[i]?.[ship.thrust ? 1 : 0] ?? "ship0", pose.x, pose.y, pose.angle)
+      ) {
         // the propeller still spins procedurally on top of the static sprite
         ctx.save();
         ctx.translate(pose.x, pose.y);
@@ -101,7 +109,8 @@ export function createSprites(sheet: ImageBitmap | null, atlas: Atlas | null): S
         drawBalloon(ctx, b, pos);
     },
     pickup(ctx, effect, pos, angle) {
-      if (!frame(ctx, `pickup_${effect}`, pos.x, pos.y, angle)) drawPickup(ctx, effect, pos, angle);
+      if (!frame(ctx, PICKUP_FRAMES[effect], pos.x, pos.y, angle))
+        drawPickup(ctx, effect, pos, angle);
     },
   };
 }

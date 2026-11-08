@@ -1,3 +1,4 @@
+import { Pool } from "../pool.ts";
 import { type Controls, type EntityId, type Seq, seq } from "../types.ts";
 import { ARENA, wrap } from "./arena.ts";
 import { dcos, dsin } from "./dmath.ts";
@@ -262,6 +263,9 @@ export interface Particle {
 }
 
 /** Short-lived particle burst. Many small objects — remember this for Lab 7. */
+/** Particles are reused across explosions (Lab 7): ~28 objects per explosion, dozens per second. */
+export const particlePool = new Pool<Particle>(() => ({ x: 0, y: 0, vx: 0, vy: 0, r: 0 }), 256);
+
 export class Explosion extends Entity {
   readonly kind = "explosion";
   ttl = 0.9;
@@ -270,11 +274,20 @@ export class Explosion extends Entity {
   constructor({ pos, rng, size = 1 }: { pos: Vector2; rng: Rng; size?: number }) {
     super({ pos, radius: 0 });
     this.collidable = false;
-    this.particles = Array.from({ length: Math.round(28 * size) }, () => {
+    const n = Math.round(28 * size);
+    this.particles = new Array<Particle>(n);
+    for (let i = 0; i < n; i++) {
+      // same rng draws in the same order as before pooling: the golden-hash test guards this
       const a = rng.range(-Math.PI, Math.PI);
       const s = rng.range(40, 220) * size;
-      return { x: pos.x, y: pos.y, vx: dcos(a) * s, vy: dsin(a) * s, r: rng.range(2, 5) };
-    });
+      const p = particlePool.acquire();
+      p.x = pos.x;
+      p.y = pos.y;
+      p.vx = dcos(a) * s;
+      p.vy = dsin(a) * s;
+      p.r = rng.range(2, 5);
+      this.particles[i] = p;
+    }
   }
 
   override update(dt: number): void {
@@ -285,6 +298,10 @@ export class Explosion extends Entity {
       p.vy *= 1 - 2 * dt;
     }
     this.ttl -= dt;
-    if (this.ttl <= 0) this.w.despawn(this.id);
+    if (this.ttl <= 0) {
+      for (const p of this.particles) particlePool.release(p);
+      this.particles.length = 0;
+      this.w.despawn(this.id);
+    }
   }
 }

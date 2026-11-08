@@ -60,7 +60,11 @@ const puzzles = {
     return log;`,
 };
 
-const browser = await chromium.launch({ channel: "chrome", headless: false });
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: ["--mute-audio"],
+  headless: false,
+});
 const page = await browser.newPage();
 await page.goto("http://localhost:4173/");
 for (const [name, body] of Object.entries(puzzles)) {

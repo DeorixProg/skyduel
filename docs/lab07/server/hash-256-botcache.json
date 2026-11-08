@@ -1,0 +1,45 @@
+{
+  "label": "hash-256-botcache",
+  "bots": 256,
+  "seconds": 45,
+  "entities": 820,
+  "ticks": 1352,
+  "tickP50": 8.36,
+  "tickP95": 14.92,
+  "tickP99": 20.23,
+  "tickMax": 34.59,
+  "top": [
+    {
+      "f": "spatialHashPairs spatial.ts",
+      "ms": 5867
+    },
+    {
+      "f": "resolveCollisions collision.ts",
+      "ms": 1147
+    },
+    {
+      "f": "wrapDelta arena.ts",
+      "ms": 871
+    },
+    {
+      "f": "overlaps collision.ts",
+      "ms": 738
+    },
+    {
+      "f": "onHit entities.ts",
+      "ms": 422
+    },
+    {
+      "f": "(anonymous) spatial.ts",
+      "ms": 354
+    },
+    {
+      "f": "damage entities.ts",
+      "ms": 342
+    },
+    {
+      "f": "emit bus.ts",
+      "ms": 320
+    }
+  ]
+}

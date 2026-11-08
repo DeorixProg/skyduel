@@ -1,0 +1,110 @@
+{
+  "totalAllocKb": 44626,
+  "label": "after-perf",
+  "seconds": 30,
+  "throttle": 1,
+  "frames": {
+    "n": 5491,
+    "mean": 5.555654707703786,
+    "sd": 0.20141184489532601,
+    "p50": 5.599999997764826,
+    "p95": 5.800000000745058,
+    "p99": 6,
+    "max": 8.199999999254942
+  },
+  "measures": {
+    "render": {
+      "n": 5493,
+      "total": 2093.5999999530613,
+      "max": 2.800000000745058
+    },
+    "simulate": {
+      "n": 916,
+      "total": 123.99999998509884,
+      "max": 0.7000000029802322
+    },
+    "decode": {
+      "n": 915,
+      "total": 38.49999999627471,
+      "max": 0.20000000298023224
+    },
+    "reconcile": {
+      "n": 735,
+      "total": 13.099999997764826,
+      "max": 0.19999999925494194
+    }
+  },
+  "gc": {
+    "minor": {
+      "n": 24,
+      "ms": 15.997999999999998,
+      "max": 1.438
+    },
+    "major": {
+      "n": 19,
+      "ms": 45.18899999999999,
+      "max": 4.169
+    },
+    "majorKinds": {
+      "finalize incremental marking via task heap 9→4 MB": 1,
+      "finalize incremental marking via task heap 6→4 MB": 3,
+      "finalize incremental marking via task heap 5→4 MB": 9,
+      "finalize incremental marking via task heap 4→4 MB": 5,
+      "sampling profiler heap 5→4 MB": 1
+    }
+  },
+  "gcSelfMs": 92,
+  "topAlloc": [
+    {
+      "f": "Te index-BCk_uqIG.js:70",
+      "kb": 10678
+    },
+    {
+      "f": "Fu index-BCk_uqIG.js:70",
+      "kb": 6985
+    },
+    {
+      "f": "jl index-BCk_uqIG.js:55",
+      "kb": 3473
+    },
+    {
+      "f": "we index-BCk_uqIG.js:70",
+      "kb": 3442
+    },
+    {
+      "f": "next :0",
+      "kb": 3298
+    },
+    {
+      "f": "be index-BCk_uqIG.js:70",
+      "kb": 2177
+    }
+  ],
+  "topSelf": [
+    {
+      "f": "drawImage :0",
+      "ms": 217
+    },
+    {
+      "f": "fillText :0",
+      "ms": 77
+    },
+    {
+      "f": "arc :0",
+      "ms": 72
+    },
+    {
+      "f": "Te index-BCk_uqIG.js:70",
+      "ms": 71
+    },
+    {
+      "f": "measureText :0",
+      "ms": 64
+    },
+    {
+      "f": "requestAnimationFrame :0",
+      "ms": 53
+    }
+  ],
+  "errors": []
+}

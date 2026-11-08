@@ -4,6 +4,7 @@ import { binaryCodec } from "@skyduel/shared/codec/binary.ts";
 import type { Codec } from "@skyduel/shared/codec/codec.ts";
 import { jsonCodec } from "@skyduel/shared/codec/json.ts";
 import { DT, reconcile } from "@skyduel/shared/net/predict.ts";
+import { Pool } from "@skyduel/shared/pool.ts";
 import type { ServerMessageOf } from "@skyduel/shared/protocol.ts";
 import { ARENA, wrap, wrapDelta } from "@skyduel/shared/sim/arena.ts";
 import { BULLET, COOLDOWN } from "@skyduel/shared/sim/entities.ts";
@@ -24,12 +25,25 @@ import { createHud } from "../hud.ts";
 import { type Input as KeyInput, readControls } from "../input.ts";
 import { createLoop, type Loop, type LoopStats } from "../loop.ts";
 import { cameraFor, type View } from "../render/canvas.ts";
-import { drawBackground, drawHud, drawScoreboard } from "../render/draw.ts";
+import { drawBackground, drawHud, drawScoreboard, type ScoreRow } from "../render/draw.ts";
+import { createOverlay } from "../render/overlay.ts";
 import type { Sprites } from "../render/sprites.ts";
 import type { Connection } from "./connection.ts";
 import { createNetgraph, type Netgraph } from "./netgraph.ts";
 
 const TICK_MS = DT * 1000;
+
+/** performance.mark/measure around the hot paths, only with ?perf=1 (entries allocate). */
+const PERF = new URLSearchParams(location.search).has("perf");
+function timed<T>(name: string, fn: () => T): T {
+  if (!PERF) return fn();
+  performance.mark(`${name}:start`);
+  try {
+    return fn();
+  } finally {
+    performance.measure(name, `${name}:start`);
+  }
+}
 const REDUNDANCY = 3; // every input packet carries the last 3 inputs
 const SMOOTH_TAU = 0.04; // s; the correction offset decays to ~8 % in 100 ms
 const SNAP_DIST = 150; // corrections larger than this are teleports (respawn): no smoothing
@@ -42,21 +56,44 @@ interface BufferedSnapshot {
 }
 
 interface LocalBullet {
+  seq: Seq;
   x: number;
   y: number;
-  readonly vx: number;
-  readonly vy: number;
-  readonly angle: number;
+  vx: number;
+  vy: number;
+  angle: number;
   ttl: number;
-  readonly born: number;
+  born: number;
 }
 
-interface Explosion {
+/** One live particle; explosions are just particles with a shared lifetime. */
+interface Spark {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  r: number;
   ttl: number;
-  readonly parts: Array<{ x: number; y: number; vx: number; vy: number; r: number }>;
 }
+
+/** Interpolated view of a remote entity; reused frame after frame (no per-frame allocation). */
+interface RemoteView {
+  src: EntityData;
+  x: number;
+  y: number;
+  angle: number;
+  seen: number;
+}
+
+// Lab 7: pools for everything that is created in bursts during a fight
+const bulletPool = new Pool<LocalBullet>(
+  () => ({ seq: seq(0), x: 0, y: 0, vx: 0, vy: 0, angle: 0, ttl: 0, born: 0 }),
+  32,
+);
+const sparkPool = new Pool<Spark>(() => ({ x: 0, y: 0, vx: 0, vy: 0, r: 0, ttl: 0 }), 512);
 
 export interface NetGame {
+  readonly shipId: EntityId;
   readonly loop: Loop;
   readonly recorder: Recorder;
   readonly graph: Netgraph;
@@ -128,6 +165,9 @@ export function startNetGame({
   const buffer: BufferedSnapshot[] = [];
   let latest: BufferedSnapshot | null = null;
   let clockOffset = Number.POSITIVE_INFINITY; // recv − tick·TICK_MS, minimum over a window
+  // the offsets live in a ring of plain numbers: the snapshots themselves can die young
+  const offsets = new Float64Array(60).fill(Number.POSITIVE_INFINITY);
+  let offsetAt = 0;
   let nextSeq = 0;
   const sent: Input[] = []; // last REDUNDANCY inputs (for resending)
   let pending: Input[] = []; // inputs not yet acknowledged
@@ -137,7 +177,28 @@ export function startNetGame({
   let localCooldown = 0;
   const localBullets = new Map<Seq, LocalBullet>();
   const confirmed = new Set<Seq>(); // seqs of own bullets the server has shown us
-  const explosions: Explosion[] = [];
+  const sparks: Spark[] = []; // active particles (swap-remove, no per-explosion arrays)
+  const serverOwn = new Set<Seq>(); // reused every step
+  const remote = new Map<EntityId, RemoteView>();
+  let frameNo = 0;
+  interface ShipSlot {
+    s: ShipData | null;
+    x: number;
+    y: number;
+    angle: number;
+    thrust: boolean;
+  }
+  const shipSlots: ShipSlot[] = Array.from({ length: 64 }, () => ({
+    s: null,
+    x: 0,
+    y: 0,
+    angle: 0,
+    thrust: false,
+  }));
+  const ships: ShipSlot[] = [];
+  const look = { color: "", thrust: false }; // scratch object for sprites.ship
+  const overlay = createOverlay(250); // HUD, scoreboard and netgraph: text redrawn 4×/s, blitted every frame
+  const scoreRows: ScoreRow[] = [];
   let simTime = 0;
 
   const myShip = (s: BufferedSnapshot | null): ShipData | null => {
@@ -158,9 +219,13 @@ export function startNetGame({
     };
     deriveEvents(latest, s);
     buffer.push(s);
-    while (buffer.length > 60) buffer.shift();
+    // 12 snapshots = 400 ms ≥ interpolation delay + jitter. Lab 6 kept 60 (2 s): they
+    // survived two scavenges, got promoted to old space and fed the major GCs (Lab 7).
+    while (buffer.length > 12) buffer.shift();
     latest = s;
-    clockOffset = Math.min(...buffer.map((b) => b.recv - b.tick * TICK_MS));
+    offsets[offsetAt++ % offsets.length] = recv - s.tick * TICK_MS;
+    clockOffset = Number.POSITIVE_INFINITY;
+    for (const o of offsets) if (o < clockOffset) clockOffset = o;
 
     const mine = myShip(s);
     if (!mine) return;
@@ -173,7 +238,9 @@ export function startNetGame({
       return;
     }
     const before = predicted;
-    const r = reconcile({ server: shipBody(mine), ack: snap.ack, pending });
+    const r = timed("reconcile", () =>
+      reconcile({ server: shipBody(mine), ack: snap.ack, pending }),
+    );
     pending = r.pending;
     predicted = { ...r.state, thrust: mine.thrust };
     const dx = wrapDelta(predicted.x, before.x, ARENA.width);
@@ -194,7 +261,10 @@ export function startNetGame({
     "binary",
     ({ data }) => {
       try {
-        onSnapshot(codec.decodeSnapshot(data), data.byteLength);
+        onSnapshot(
+          timed("decode", () => codec.decodeSnapshot(data)),
+          data.byteLength,
+        );
       } catch (err: unknown) {
         console.warn("bad snapshot dropped:", err instanceof Error ? err.message : err);
       }
@@ -215,7 +285,9 @@ export function startNetGame({
   /** Turn snapshot differences into game events (sounds, kill feed, explosions). */
   function deriveEvents(prev: BufferedSnapshot | null, next: BufferedSnapshot): void {
     if (!prev) return;
-    for (const [id, e] of next.entities) {
+    // .values() + e.id instead of `for (const [id, e] of map)`: no [k, v] array per entry
+    for (const e of next.entities.values()) {
+      const id = e.id;
       const old = prev.entities.get(id);
       switch (e.kind) {
         case "ship": {
@@ -244,7 +316,8 @@ export function startNetGame({
           assertNever(e, "entity kind");
       }
     }
-    for (const [id, old] of prev.entities) {
+    for (const old of prev.entities.values()) {
+      const id = old.id;
       if (old.kind === "balloon" && !next.entities.has(id)) {
         bus.emit("popped", { target: id });
         explode(old.x, old.y, 0.6);
@@ -254,12 +327,19 @@ export function startNetGame({
 
   function explode(x: number, y: number, size: number): void {
     // cosmetic only, so Math.random is fine here (it never touches the shared sim)
-    const parts = Array.from({ length: Math.round(28 * size) }, () => {
+    const n = Math.round(28 * size);
+    for (let i = 0; i < n; i++) {
       const a = Math.random() * Math.PI * 2;
       const sp = (40 + Math.random() * 180) * size;
-      return { x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, r: 2 + Math.random() * 3 };
-    });
-    explosions.push({ ttl: 0.9, parts });
+      const p = sparkPool.acquire();
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(a) * sp;
+      p.vy = Math.sin(a) * sp;
+      p.r = 2 + Math.random() * 3;
+      p.ttl = 0.9;
+      sparks.push(p);
+    }
   }
 
   // ── fixed step: sample input, send, predict ──────────────────────────────
@@ -282,22 +362,24 @@ export function startNetGame({
       localCooldown = Math.max(0, localCooldown - dt);
       if (inp.fire && localCooldown === 0 && !mine.effects.includes("homing")) {
         localCooldown = mine.effects.includes("rapid") ? COOLDOWN.rapid : COOLDOWN.normal;
-        localBullets.set(inp.seq, {
-          x: predicted.x + Math.cos(predicted.angle) * 24,
-          y: predicted.y + Math.sin(predicted.angle) * 24,
-          vx: predicted.vx + Math.cos(predicted.angle) * BULLET.SPEED,
-          vy: predicted.vy + Math.sin(predicted.angle) * BULLET.SPEED,
-          angle: predicted.angle,
-          ttl: BULLET.TTL,
-          born: performance.now(),
-        });
+        const b = bulletPool.acquire();
+        b.seq = inp.seq;
+        b.x = predicted.x + Math.cos(predicted.angle) * 24;
+        b.y = predicted.y + Math.sin(predicted.angle) * 24;
+        b.vx = predicted.vx + Math.cos(predicted.angle) * BULLET.SPEED;
+        b.vy = predicted.vy + Math.sin(predicted.angle) * BULLET.SPEED;
+        b.angle = predicted.angle;
+        b.ttl = BULLET.TTL;
+        b.born = performance.now();
+        localBullets.set(inp.seq, b);
         bus.emit("fired", { by: myShipId });
       }
     }
-    const serverOwn = new Set<Seq>();
+    serverOwn.clear();
     for (const e of latest?.entities.values() ?? [])
       if (e.kind === "bullet" && e.owner === myShipId) serverOwn.add(e.seq);
-    for (const [k, b] of localBullets) {
+    for (const b of localBullets.values()) {
+      const k = b.seq;
       b.x = wrap(b.x + b.vx * dt, ARENA.width);
       b.y = wrap(b.y + b.vy * dt, ARENA.height);
       b.ttl -= dt;
@@ -307,48 +389,96 @@ export function startNetGame({
       if (b.ttl <= 0 || goneOnServer || neverConfirmed) {
         localBullets.delete(k);
         confirmed.delete(k);
+        bulletPool.release(b);
       }
     }
-    for (const ex of explosions) {
-      ex.ttl -= dt;
-      for (const p of ex.parts) {
-        p.x += p.vx * dt;
-        p.y += p.vy * dt;
-        p.vx *= 1 - 2 * dt;
-        p.vy *= 1 - 2 * dt;
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i];
+      if (!p) continue;
+      p.ttl -= dt;
+      if (p.ttl <= 0) {
+        sparks[i] = sparks[sparks.length - 1] ?? p; // swap-remove: O(1), no array copy
+        sparks.pop();
+        sparkPool.release(p);
+        continue;
       }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 1 - 2 * dt;
+      p.vy *= 1 - 2 * dt;
     }
-    while ((explosions[0]?.ttl ?? 1) <= 0) explosions.shift();
     hud.update(dt);
   }
 
   // ── render: interpolate others in the past, own ship in the present ──────
-  function sampleRemote(now: number): ReadonlyMap<EntityId, EntityData> | null {
-    if (!latest) return null;
-    const renderTick = (now - clockOffset - graph.state.interpDelayMs) / TICK_MS;
-    for (let i = buffer.length - 1; i > 0; i--) {
-      const a = buffer[i - 1];
-      const b = buffer[i];
-      if (!a || !b || a.tick > renderTick) continue;
-      const t = Math.min(1, (renderTick - a.tick) / (b.tick - a.tick));
-      const out = new Map<EntityId, EntityData>();
-      for (const [id, eb] of b.entities) {
-        const ea = a.entities.get(id);
-        if (!ea) {
-          out.set(id, eb); // appeared between snapshots: show at its first known position
-          continue;
-        }
-        out.set(id, {
-          ...eb,
-          x: wrap(ea.x + wrapDelta(ea.x, eb.x, ARENA.width) * t, ARENA.width),
-          y: wrap(ea.y + wrapDelta(ea.y, eb.y, ARENA.height) * t, ARENA.height),
-          angle: lerpAngle(ea.angle, eb.angle, t),
-        });
-      }
-      return out;
+  // defined once, not inside render(): a closure per frame is garbage per frame
+  function addShip(s: ShipData, x: number, y: number, angle: number, thrust: boolean): void {
+    const slot = shipSlots[ships.length];
+    if (!slot) return;
+    slot.s = s;
+    slot.x = x;
+    slot.y = y;
+    slot.angle = angle;
+    slot.thrust = thrust;
+    ships.push(slot);
+  }
+
+  let overlayStats: Readonly<LoopStats> | null = null;
+  function paintOverlay(octx: CanvasRenderingContext2D): void {
+    if (!overlayStats) return;
+    const stats = overlayStats;
+    const mine = myShip(latest);
+    drawHud(octx, stats, [
+      `ship     #${myShipId}`,
+      `hp       ${mine?.hp ?? "-"}`,
+      `arena    ${arena.name}`,
+    ]);
+    scoreRows.length = 0;
+    for (const e of latest?.entities.values() ?? []) {
+      if (e.kind !== "ship") continue;
+      const info = names.get(e.id) ?? UNKNOWN;
+      scoreRows.push({ name: info.name, color: info.color, score: e.score, effects: e.effects });
     }
-    if (renderTick > latest.tick) graph.state.underruns++;
-    return latest.entities;
+    drawScoreboard(octx, scoreRows, view.width);
+    graph.draw(octx, view);
+  }
+
+  /** Writes interpolated poses into `remote` (objects reused frame to frame). */
+  function sampleRemote(now: number): void {
+    frameNo++;
+    if (!latest) return;
+    const renderTick = (now - clockOffset - graph.state.interpDelayMs) / TICK_MS;
+    let a: BufferedSnapshot | undefined;
+    let b: BufferedSnapshot | undefined;
+    for (let i = buffer.length - 1; i > 0; i--) {
+      const x = buffer[i - 1];
+      if (x && x.tick <= renderTick) {
+        a = x;
+        b = buffer[i];
+        break;
+      }
+    }
+    if (!a || !b) {
+      if (renderTick > latest.tick) graph.state.underruns++;
+      a = latest;
+      b = latest;
+    }
+    const t = b === a ? 0 : Math.min(1, (renderTick - a.tick) / (b.tick - a.tick));
+    for (const eb of b.entities.values()) {
+      const id = eb.id;
+      const ea = a.entities.get(id) ?? eb; // appeared between snapshots: first known position
+      let v = remote.get(id);
+      if (!v) {
+        v = { src: eb, x: 0, y: 0, angle: 0, seen: 0 };
+        remote.set(id, v);
+      }
+      v.src = eb;
+      v.x = wrap(ea.x + wrapDelta(ea.x, eb.x, ARENA.width) * t, ARENA.width);
+      v.y = wrap(ea.y + wrapDelta(ea.y, eb.y, ARENA.height) * t, ARENA.height);
+      v.angle = lerpAngle(ea.angle, eb.angle, t);
+      v.seen = frameNo;
+    }
+    for (const v of remote.values()) if (v.seen !== frameNo) remote.delete(v.src.id);
   }
 
   function render(alpha: number, stats: Readonly<LoopStats>): void {
@@ -372,21 +502,23 @@ export function startNetGame({
     ctx.clip();
     drawBackground(ctx, arena.sky);
 
-    const ships: ShipData[] = [];
-    for (const e of sampleRemote(now)?.values() ?? []) {
+    sampleRemote(now);
+    ships.length = 0;
+    for (const v of remote.values()) {
+      const e = v.src;
       switch (e.kind) {
         case "balloon":
-          sprites.balloon(ctx, e, e);
+          sprites.balloon(ctx, e, v);
           break;
         case "pickup":
-          sprites.pickup(ctx, e.effect, e, simTime * 2);
+          sprites.pickup(ctx, e.effect, v, simTime * 2);
           break;
         case "bullet":
           if (e.owner === myShipId && predict && localBullets.has(e.seq)) break; // drawn locally
-          sprites.bullet(ctx, e.homing, e, e.angle);
+          sprites.bullet(ctx, e.homing, v, v.angle);
           break;
         case "ship":
-          if (e.id !== myShipId) ships.push(e);
+          if (e.id !== myShipId) addShip(e, v.x, v.y, v.angle, e.thrust);
           break;
         default:
           assertNever(e, "entity kind");
@@ -404,50 +536,37 @@ export function startNetGame({
           wrapDelta(prevPredicted.y, predicted.y, ARENA.height) * alpha +
           smooth.y;
         const angle = lerpAngle(prevPredicted.angle, predicted.angle, alpha);
-        ships.push({
-          ...mine,
-          x: wrap(x, ARENA.width),
-          y: wrap(y, ARENA.height),
-          angle,
-          thrust: predicted.thrust,
-        });
-      } else ships.push(mine); // no prediction: the newest snapshot, i.e. one RTT late
+        addShip(mine, wrap(x, ARENA.width), wrap(y, ARENA.height), angle, predicted.thrust);
+      } else addShip(mine, mine.x, mine.y, mine.angle, mine.thrust); // no prediction: one RTT late
     }
-    for (const s of ships) {
-      if (s.down) continue;
-      const info = names.get(s.id) ?? { name: `#${s.id}`, color: "#7f8c8d" };
-      sprites.ship(ctx, { color: info.color, thrust: s.thrust }, s, simTime);
-      drawLabel(ctx, { ...info, hp: s.hp, shield: s.effects.includes("shield") }, s);
+    for (const ship of ships) {
+      const s = ship.s;
+      if (!s || s.down) continue;
+      const info = names.get(s.id) ?? UNKNOWN;
+      look.color = info.color;
+      look.thrust = ship.thrust;
+      sprites.ship(ctx, look, ship, simTime);
+      drawLabel(ctx, info.name, s.hp, s.effects.includes("shield"), ship);
     }
-    for (const ex of explosions) {
-      const kk = Math.max(0, ex.ttl / 0.9);
-      ctx.fillStyle = `rgba(${200 + 55 * kk},${80 + 120 * kk},30,${kk})`;
-      for (const p of ex.parts) {
-        ctx.beginPath();
+    // sparks: one colour per 0.1 s of age instead of a new rgba() string per particle
+    for (let band = 0; band < 9; band++) {
+      const kk = (band + 0.5) / 9;
+      ctx.fillStyle = SPARK_COLORS[band] ?? "#fff";
+      ctx.beginPath();
+      for (const p of sparks) {
+        if (Math.min(8, Math.floor((p.ttl / 0.9) * 9)) !== band) continue;
+        ctx.moveTo(p.x + p.r * (0.5 + kk), p.y);
         ctx.arc(p.x, p.y, p.r * (0.5 + kk), 0, Math.PI * 2);
-        ctx.fill();
       }
+      ctx.fill();
     }
     ctx.restore();
 
-    drawHud(ctx, stats, [
-      `ship     #${myShipId}`,
-      `hp       ${mine?.hp ?? "-"}`,
-      `arena    ${arena.name}`,
-    ]);
-    const rows = [];
-    for (const e of latest?.entities.values() ?? []) {
-      if (e.kind === "ship")
-        rows.push({
-          name: nameOf(e.id),
-          color: names.get(e.id)?.color ?? "#7f8c8d",
-          score: e.score,
-          effects: new Set(e.effects),
-        });
-    }
-    drawScoreboard(ctx, rows, view.width);
+    // text is the most expensive thing on screen (fillText); it changes slowly, so
+    // it is rendered into an offscreen layer 4 times a second and blitted every frame
+    overlayStats = stats;
+    overlay.draw(ctx, view, now, paintOverlay);
     hud.draw(ctx, view);
-    graph.draw(ctx, view);
   }
 
   // live tuning of the interpolation delay
@@ -461,9 +580,15 @@ export function startNetGame({
     opts,
   );
 
-  const loop = createLoop({ step: DT, simulate, render });
+  const loop = createLoop({
+    step: DT,
+    // without ?perf the raw functions are passed: no wrapper closures per frame
+    simulate: PERF ? (dt) => timed("simulate", () => simulate(dt)) : simulate,
+    render: PERF ? (alpha, stats) => timed("render", () => render(alpha, stats)) : render,
+  });
   loop.start();
   return {
+    shipId: myShipId,
     loop,
     recorder,
     graph,
@@ -487,12 +612,42 @@ export function startNetGame({
   };
 }
 
+const UNKNOWN = { name: "?", color: "#7f8c8d", thrust: false };
+const SPARK_COLORS = Array.from({ length: 9 }, (_, band) => {
+  const k = (band + 0.5) / 9;
+  return `rgba(${Math.round(200 + 55 * k)},${Math.round(80 + 120 * k)},30,${k.toFixed(2)})`;
+});
+
+/** Names are rasterised once and reused (fillText per ship per frame was the top self-time). */
+const nameCache = new Map<string, HTMLCanvasElement>();
+function nameBitmap(name: string): HTMLCanvasElement {
+  let c = nameCache.get(name);
+  if (c) return c;
+  c = document.createElement("canvas");
+  const dpr = 2;
+  c.width = 120 * dpr;
+  c.height = 16 * dpr;
+  const g = c.getContext("2d");
+  if (g) {
+    g.scale(dpr, dpr);
+    g.font = "12px system-ui";
+    g.textAlign = "center";
+    g.fillStyle = "#1b2631";
+    g.fillText(name, 60, 12);
+  }
+  nameCache.set(name, c);
+  return c;
+}
+
 function drawLabel(
   ctx: CanvasRenderingContext2D,
-  s: { name: string; hp: number; shield: boolean },
+  name: string,
+  hp: number,
+  shield: boolean,
   pos: { x: number; y: number },
 ): void {
-  if (s.shield) {
+  const s = { hp };
+  if (shield) {
     ctx.strokeStyle = "rgba(41,128,185,0.8)";
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -503,9 +658,5 @@ function drawLabel(
   ctx.fillRect(pos.x - 20, pos.y - 34, 40, 5);
   ctx.fillStyle = s.hp > 50 ? "#27ae60" : s.hp > 25 ? "#f39c12" : "#c0392b";
   ctx.fillRect(pos.x - 20, pos.y - 34, 40 * (s.hp / 100), 5);
-  ctx.fillStyle = "#1b2631";
-  ctx.font = "12px system-ui";
-  ctx.textAlign = "center";
-  ctx.fillText(s.name, pos.x, pos.y - 39);
-  ctx.textAlign = "start";
+  ctx.drawImage(nameBitmap(name), pos.x - 60, pos.y - 51, 120, 16);
 }

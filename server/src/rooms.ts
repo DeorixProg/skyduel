@@ -7,7 +7,7 @@ import type { Match } from "./match.ts";
 export interface RoomPlayer {
   readonly id: PlayerId;
   readonly name: string;
-  readonly ws: WebSocket;
+  readonly ws: WebSocket | null; // null for server-side bots
   readonly shipId: EntityId;
   readonly color: string;
 }
@@ -82,7 +82,8 @@ export class Room extends EventEmitter<RoomEvents> {
     this.players.delete(playerId);
     this.emit("event", { t: Date.now(), room: this.id, type: "leave", player: playerId, reason });
     this.emit("leave", player, reason);
-    if (this.players.size === 0) this.emit("empty");
+    // bots alone do not keep a room alive (Lab 7 found rooms full of bots that never died)
+    if (![...this.players.values()].some((p) => p.ws !== null)) this.emit("empty");
   }
 
   chat(playerId: PlayerId, text: string): void {

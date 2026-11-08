@@ -5,7 +5,11 @@ import { chromium } from "playwright-core";
 const OUT = "docs/lab04";
 fs.mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ channel: "chrome", headless: false });
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: ["--mute-audio"],
+  headless: false,
+});
 
 async function player(name) {
   const ctx = await browser.newContext({ viewport: { width: 960, height: 600 } });

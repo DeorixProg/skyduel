@@ -10,6 +10,7 @@ const browser = await chromium.launch({
   channel: "chrome",
   headless: false,
   args: [
+    "--mute-audio",
     "--window-position=0,0",
     "--window-size=1280,760",
     "--disable-features=CalculateNativeWinOcclusion",

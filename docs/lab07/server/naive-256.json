@@ -1,0 +1,45 @@
+{
+  "label": "naive-256",
+  "bots": 256,
+  "seconds": 45,
+  "entities": 911,
+  "ticks": 1352,
+  "tickP50": 14.97,
+  "tickP95": 32.31,
+  "tickP99": 35.61,
+  "tickMax": 43.76,
+  "top": [
+    {
+      "f": "next bot.ts",
+      "ms": 5493
+    },
+    {
+      "f": "ofKind world.ts",
+      "ms": 4349
+    },
+    {
+      "f": "wrapDelta arena.ts",
+      "ms": 2513
+    },
+    {
+      "f": "naivePairs collision.ts",
+      "ms": 2346
+    },
+    {
+      "f": "overlaps collision.ts",
+      "ms": 1550
+    },
+    {
+      "f": "resolveCollisions collision.ts",
+      "ms": 1269
+    },
+    {
+      "f": "isKind world.ts",
+      "ms": 1112
+    },
+    {
+      "f": "(garbage collector) ",
+      "ms": 397
+    }
+  ]
+}

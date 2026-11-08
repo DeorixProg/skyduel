@@ -1,0 +1,74 @@
+[
+  {
+    "clients": 8,
+    "entities": 31,
+    "tickP50": 0.41,
+    "tickP99": 0.8,
+    "elu": 0.02,
+    "rssMB": 88,
+    "outMBps": 0.17
+  },
+  {
+    "clients": 32,
+    "entities": 92,
+    "tickP50": 1.11,
+    "tickP99": 2.23,
+    "elu": 0.05,
+    "rssMB": 92,
+    "outMBps": 2.01
+  },
+  {
+    "clients": 64,
+    "entities": 157,
+    "tickP50": 2.31,
+    "tickP99": 6,
+    "elu": 0.099,
+    "rssMB": 93,
+    "outMBps": 6.85
+  },
+  {
+    "clients": 128,
+    "entities": 276,
+    "tickP50": 5.75,
+    "tickP99": 11.88,
+    "elu": 0.23,
+    "rssMB": 112,
+    "outMBps": 24.33
+  },
+  {
+    "clients": 192,
+    "entities": 375,
+    "tickP50": 10.39,
+    "tickP99": 17.88,
+    "elu": 0.395,
+    "rssMB": 167,
+    "outMBps": 49.51
+  },
+  {
+    "clients": 256,
+    "entities": 497,
+    "tickP50": 16.22,
+    "tickP99": 30.82,
+    "elu": 0.604,
+    "rssMB": 178,
+    "outMBps": 83
+  },
+  {
+    "clients": 320,
+    "entities": 581,
+    "tickP50": 22.57,
+    "tickP99": 36.49,
+    "elu": 0.789,
+    "rssMB": 201,
+    "outMBps": 122.19
+  },
+  {
+    "clients": 384,
+    "entities": 704,
+    "tickP50": 31.14,
+    "tickP99": 37.22,
+    "elu": 1,
+    "rssMB": 167,
+    "outMBps": 168.52
+  }
+]

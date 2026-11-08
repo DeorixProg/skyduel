@@ -11,6 +11,7 @@ import {
   type EntityOfKind,
   IDLE,
   Pickup,
+  type Ship,
 } from "./entities.ts";
 import type { Effect } from "./entity.ts";
 import { homingSystem } from "./homing.ts";
@@ -62,6 +63,7 @@ export class World {
   }
 
   spawn<E extends AnyEntity>(entity: E): E {
+    this.#invalidate();
     entity.assignId(entityId(this.#nextId++));
     entity.world = this;
     if (this.#stepping) this.#pending.push(entity);
@@ -72,6 +74,7 @@ export class World {
   despawn(id: EntityId): void {
     const e = this.#entities.get(id) ?? this.#pending.find((p) => p.id === id);
     if (e) e.alive = false;
+    this.#invalidate();
   }
 
   /** May be undefined: the entity can be gone (TypeScript makes callers handle it). */
@@ -93,12 +96,33 @@ export class World {
     }
   }
 
+  /**
+   * Live ships / balloons as ARRAYS, built at most once between changes (Lab 7):
+   * 256 bots each walking the ofKind() generator over the whole Map was half of
+   * the server tick. Invalidated on spawn, despawn and at every step.
+   */
+  #ships: Ship[] | null = null;
+  #balloons: Balloon[] | null = null;
+  #invalidate(): void {
+    this.#ships = null;
+    this.#balloons = null;
+  }
+  ships(): readonly Ship[] {
+    this.#ships ??= [...this.ofKind("ship")];
+    return this.#ships;
+  }
+  balloons(): readonly Balloon[] {
+    this.#balloons ??= [...this.ofKind("balloon")];
+    return this.#balloons;
+  }
+
   emit<K extends keyof SimEvents>(type: K, detail: SimEvents[K]): void {
     this.bus.emit(type, detail);
   }
 
   /** One fixed step: inputs → update → homing → collisions → spawns → sweep. */
   step(dt: number, inputs: ReadonlyMap<EntityId, Input> = new Map()): void {
+    this.#invalidate();
     this.#stepping = true;
     this.time += dt;
     for (const e of this.#entities.values()) {
@@ -122,6 +146,7 @@ export class World {
   }
 
   #sweep(): void {
+    this.#invalidate();
     for (const [id, e] of this.#entities) if (!e.alive) this.#entities.delete(id);
   }
 

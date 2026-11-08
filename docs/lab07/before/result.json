@@ -1,0 +1,90 @@
+{
+  "totalAllocKb": 127996,
+  "label": "before",
+  "seconds": 30,
+  "throttle": 1,
+  "frames": {
+    "n": 5486,
+    "mean": 5.564855997082942,
+    "sd": 0.7062561219886196,
+    "p50": 5.599999997764826,
+    "p95": 5.799999997019768,
+    "p99": 6,
+    "max": 55.5
+  },
+  "measures": {},
+  "gc": {
+    "minor": {
+      "n": 20,
+      "ms": 14.709000000000001,
+      "max": 1.144
+    },
+    "major": {
+      "n": 20,
+      "ms": 44.42100000000001,
+      "max": 3.943
+    },
+    "majorKinds": {
+      "finalize incremental marking via task heap 8→4 MB": 2,
+      "finalize incremental marking via task heap 7→4 MB": 2,
+      "finalize incremental marking via task heap 5→4 MB": 2,
+      "finalize incremental marking via task heap 6→4 MB": 4,
+      "finalize incremental marking via task heap 9→4 MB": 9,
+      "sampling profiler heap 10→4 MB": 1
+    }
+  },
+  "gcSelfMs": 94,
+  "topAlloc": [
+    {
+      "f": "sampleRemote index-uMaP1rni.js:13929",
+      "kb": 27971
+    },
+    {
+      "f": "render index-uMaP1rni.js:13956",
+      "kb": 19338
+    },
+    {
+      "f": "draw index-uMaP1rni.js:13640",
+      "kb": 12295
+    },
+    {
+      "f": "decodeSnapshot index-uMaP1rni.js:13389",
+      "kb": 6038
+    },
+    {
+      "f": "Set :0",
+      "kb": 5936
+    },
+    {
+      "f": "deriveEvents index-uMaP1rni.js:13809",
+      "kb": 5652
+    }
+  ],
+  "topSelf": [
+    {
+      "f": "fillText :0",
+      "ms": 510
+    },
+    {
+      "f": "fillRect :0",
+      "ms": 116
+    },
+    {
+      "f": "drawImage :0",
+      "ms": 98
+    },
+    {
+      "f": "render index-uMaP1rni.js:13956",
+      "ms": 77
+    },
+    {
+      "f": "requestAnimationFrame :0",
+      "ms": 71
+    },
+    {
+      "f": "draw index-uMaP1rni.js:13640",
+      "ms": 58
+    }
+  ],
+  "errors": []
+}

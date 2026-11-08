@@ -1,0 +1,69 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Lab 7: particles in a Web Worker — go / no-go</title>
+<pre id="out">running…</pre>
+<script type="module">
+  // The particle update of netgame.ts, on the main thread vs in a Worker with a
+  // transferable Float32Array (x, y, vx, vy, ttl per particle). We measure what the
+  // MAIN thread pays per frame in both cases, for realistic and for silly counts.
+  const STRIDE = 5;
+  const DT = 1 / 60;
+  function step(buf, n, dt) {
+    for (let i = 0; i < n; i++) {
+      const o = i * STRIDE;
+      buf[o + 4] -= dt;
+      buf[o] += buf[o + 2] * dt;
+      buf[o + 1] += buf[o + 3] * dt;
+      buf[o + 2] *= 1 - 2 * dt;
+      buf[o + 3] *= 1 - 2 * dt;
+    }
+  }
+  const workerSrc = `const STRIDE=${STRIDE};${step.toString()}
+    onmessage = (e) => { const b = new Float32Array(e.data.buf); step(b, e.data.n, e.data.dt); postMessage({ buf: b.buffer, n: e.data.n }, [b.buffer]); };`;
+  const worker = new Worker(URL.createObjectURL(new Blob([workerSrc], { type: "text/javascript" })));
+
+  function fill(n) {
+    const b = new Float32Array(n * STRIDE);
+    for (let i = 0; i < n; i++) b.set([800, 450, Math.random() * 200 - 100, Math.random() * 200 - 100, 0.9], i * STRIDE);
+    return b;
+  }
+
+  async function mainThread(n, frames) {
+    const b = fill(n);
+    for (let i = 0; i < 200; i++) step(b, n, DT); // warm up the JIT
+    const t = performance.now();
+    for (let f = 0; f < frames; f++) step(b, n, DT);
+    return (performance.now() - t) / frames;
+  }
+
+  async function inWorker(n, frames) {
+    let buf = fill(n).buffer;
+    let mainMs = 0;
+    let roundTrip = 0;
+    for (let f = 0; f < frames + 50; f++) {
+      const t0 = performance.now();
+      const reply = new Promise((r) => (worker.onmessage = (e) => r(e.data)));
+      worker.postMessage({ buf, n, dt: DT }, [buf]); // transfer, no copy
+      const t1 = performance.now();
+      const data = await reply;
+      const t2 = performance.now();
+      buf = data.buf; // back to us, again without a copy
+      new Float32Array(buf); // the renderer would read it here
+      const t3 = performance.now();
+      if (f >= 50) {
+        mainMs += t1 - t0 + (t3 - t2);
+        roundTrip += t2 - t0;
+      }
+    }
+    return { mainMs: mainMs / frames, roundTripMs: roundTrip / frames };
+  }
+
+  const rows = [];
+  for (const n of [300, 2000, 20000, 200000]) {
+    const m = await mainThread(n, 300);
+    const w = await inWorker(n, 300);
+    rows.push({ particles: n, mainThreadMs: +m.toFixed(4), workerMainCostMs: +w.mainMs.toFixed(4), workerRoundTripMs: +w.roundTripMs.toFixed(3) });
+  }
+  window.__bench = rows;
+  document.getElementById("out").textContent = JSON.stringify(rows, null, 2);
+</script>

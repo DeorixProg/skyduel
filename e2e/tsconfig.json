@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom"],
+    "types": ["node"],
+    "module": "preserve",
+    "moduleResolution": "bundler"
+  },
+  "include": ["./**/*.ts", "../playwright.config.ts", "../client/src/globals.d.ts"]
+}

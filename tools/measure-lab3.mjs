@@ -7,7 +7,11 @@ const BASE = "http://localhost:4173/";
 const OUT = "docs/lab03";
 fs.mkdirSync(OUT, { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ channel: "chrome", headless: false });
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: ["--mute-audio"],
+  headless: false,
+});
 const ctx = await browser.newContext({ viewport: { width: 1100, height: 650 } });
 const report = {};
 

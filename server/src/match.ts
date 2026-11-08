@@ -1,5 +1,8 @@
+import type { PlayerInput } from "@skyduel/shared/bot.ts";
 import { DT, TICK_RATE } from "@skyduel/shared/net/predict.ts";
+import { naivePairs } from "@skyduel/shared/sim/collision.ts";
 import { Ship } from "@skyduel/shared/sim/entities.ts";
+import { spatialHashPairs } from "@skyduel/shared/sim/spatial.ts";
 import { World } from "@skyduel/shared/sim/world.ts";
 import { type Snapshot, takeSnapshot } from "@skyduel/shared/snapshot.ts";
 import {
@@ -22,6 +25,9 @@ export interface MatchPlayer {
   lastSeq: Seq;
   ack: Seq;
   last: Input | null;
+  /** Server-side bot: produces the same Input a socket would, through the same queue. */
+  readonly bot: PlayerInput | null;
+  botSeq: number;
 }
 
 export interface MatchStats {
@@ -61,13 +67,19 @@ export class Match {
     arena,
     seed = 1,
     onSnapshot,
+    collision = "hash",
   }: {
+    collision?: "naive" | "hash";
     arena: Pick<ArenaConfig, "balloons" | "hunters">;
     seed?: number;
     onSnapshot?: Match["onSnapshot"];
   }) {
     this.seed = seed;
-    this.world = new World({ seed });
+    // Lab 7 measured both broad phases (identical results, tested bit for bit):
+    //   spread-out players (load test, 256 clients): naive p99 38.8 ms, hash 21.5 ms;
+    //   a clustered dogfight (256 bots): naive 18.7 ms, hash 20.2 ms.
+    // The hash bounds the bad case and costs little in the clustered one → default.
+    this.world = new World({ seed, collide: collision === "hash" ? spatialHashPairs : naivePairs });
     this.world.populate({ balloons: arena.balloons, hunters: arena.hunters });
     this.onSnapshot = onSnapshot;
   }
@@ -76,11 +88,19 @@ export class Match {
     return this.#timer !== null;
   }
 
-  addPlayer(playerId: PlayerId, name: string): Ship {
+  addPlayer(playerId: PlayerId, name: string, bot: PlayerInput | null = null): Ship {
     const color = COLORS[this.players.size % COLORS.length] ?? COLORS[0];
     const ship = this.world.spawn(new Ship({ pos: this.world.findSafeSpot(200), name, color }));
     ship.angle = this.world.rng.range(-Math.PI, Math.PI);
-    this.players.set(playerId, { ship, queue: [], lastSeq: seq(0), ack: seq(0), last: null });
+    this.players.set(playerId, {
+      ship,
+      queue: [],
+      lastSeq: seq(0),
+      ack: seq(0),
+      last: null,
+      bot,
+      botSeq: 0,
+    });
     if (!this.#timer) this.start();
     return ship;
   }
@@ -139,6 +159,9 @@ export class Match {
   /** One authoritative tick (public so tests can step without timers). */
   step(): void {
     const inputs = new Map<EntityId, Input>();
+    for (const [id, p] of this.players) {
+      if (p.bot) this.onInputs(id, [{ ...p.bot.next(p.ship, this.world), seq: seq(++p.botSeq) }]);
+    }
     for (const p of this.players.values()) {
       const next = p.queue.shift();
       if (next) {

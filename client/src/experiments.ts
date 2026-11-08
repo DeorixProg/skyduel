@@ -43,31 +43,37 @@ export interface FrameSummary {
 }
 
 export interface Recorder {
-  readonly frames: number[];
+  readonly frames: readonly number[];
   mark(t: number): void;
   reset(): void;
   summary(): FrameSummary;
 }
 
-export function createRecorder(): Recorder {
-  const frames: number[] = [];
+export function createRecorder(capacity = 1 << 16): Recorder {
+  // fixed ring of doubles: recording a frame must not allocate (Lab 7 found the growing
+  // number[] being re-allocated in old space and feeding major GCs)
+  const ring = new Float64Array(capacity);
+  let count = 0;
   let prev = 0;
+  const values = (): number[] => Array.from(ring.subarray(0, Math.min(count, capacity)));
   return {
-    frames,
+    get frames() {
+      return values();
+    },
     mark(t: number) {
-      if (prev) frames.push(t - prev);
+      if (prev) ring[count++ % capacity] = t - prev;
       prev = t;
     },
     reset() {
-      frames.length = 0;
+      count = 0;
       prev = 0;
     },
     summary() {
-      const s = [...frames].sort((a, b) => a - b);
+      const s = values().sort((x, y) => x - y);
       const pct = (p: number): number =>
         s[Math.min(s.length - 1, Math.floor((p / 100) * s.length))] ?? 0;
-      const mean = s.reduce((a, b) => a + b, 0) / (s.length || 1);
-      const sd = Math.sqrt(s.reduce((a, b) => a + (b - mean) ** 2, 0) / (s.length || 1));
+      const mean = s.reduce((x, y) => x + y, 0) / (s.length || 1);
+      const sd = Math.sqrt(s.reduce((x, y) => x + (y - mean) ** 2, 0) / (s.length || 1));
       return {
         n: s.length,
         mean,

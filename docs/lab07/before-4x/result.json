@@ -1,0 +1,46 @@
+{
+  "totalAllocKb": 0,
+  "label": "before-4x",
+  "seconds": 30,
+  "throttle": 4,
+  "frames": {
+    "n": 5471,
+    "mean": 5.574812648509782,
+    "sd": 0.8107698099284268,
+    "p50": 5.5,
+    "p95": 6.5,
+    "p99": 8.5,
+    "max": 19.699999999254942
+  },
+  "measures": {},
+  "gc": {
+    "minor": {
+      "n": 23,
+      "ms": 46.135000000000005,
+      "max": 3.625
+    },
+    "major": {
+      "n": 16,
+      "ms": 116.62499999999999,
+      "max": 14.075
+    },
+    "majorKinds": {
+      "finalize incremental marking via task heap 8→4 MB": 3,
+      "finalize incremental marking via task heap 7→4 MB": 4,
+      "finalize incremental marking via task heap 6→4 MB": 1,
+      "finalize incremental marking via task heap 5→4 MB": 2,
+      "finalize incremental marking via task heap 9→4 MB": 4,
+      "finalize incremental marking via task heap 11→4 MB": 1,
+      "finalize incremental marking via task heap 10→4 MB": 1
+    }
+  },
+  "gcSelfMs": 0,
+  "topAlloc": [
+    {
+      "f": "(none) :1",
+      "kb": 0
+    }
+  ],
+  "topSelf": [],
+  "errors": []
+}

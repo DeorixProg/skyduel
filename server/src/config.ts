@@ -31,7 +31,7 @@ export const ConfigSchema = z
       .min(1)
       .default(path.join(here, "..", "..", "client", "dist")),
     MAX_ROOMS: int(1, 10_000, 50),
-    MAX_PLAYERS_PER_ROOM: int(1, 64, 8),
+    MAX_PLAYERS_PER_ROOM: int(1, 1024, 8),
     MAX_PAYLOAD: int(64, 1 << 20, 4096),
     MSG_RATE: int(1, 1000, 60), // tokens per second (30 inputs/s + control)
     MSG_BURST: int(1, 10_000, 120),
@@ -40,6 +40,7 @@ export const ConfigSchema = z
     SLOW_CLIENT_BYTES: int(1024, 64 * 1024 * 1024, 256 * 1024),
     ENABLE_SLOW_ENDPOINT: flag, // Lab 4 demo only
     SIM_CHAOS: flag, // Lab 5 experiment only
+    COLLISION: z.enum(["naive", "hash"]).default("hash"), // Lab 7: broad phase (see README)
   })
   .transform((e) => ({
     port: e.PORT,
@@ -56,6 +57,7 @@ export const ConfigSchema = z
     slowClientBytes: e.SLOW_CLIENT_BYTES,
     enableSlowEndpoint: e.ENABLE_SLOW_ENDPOINT,
     simChaos: e.SIM_CHAOS,
+    collision: e.COLLISION,
   }));
 
 export type ServerConfig = Readonly<z.output<typeof ConfigSchema>>;

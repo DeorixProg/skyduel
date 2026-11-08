@@ -5,7 +5,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch({
   channel: "chrome",
   headless: false,
-  args: ["--window-size=1280,760"],
+  args: ["--mute-audio", "--window-size=1280,760"],
   ignoreDefaultArgs: [
     "--disable-background-timer-throttling",
     "--disable-renderer-backgrounding",

@@ -1,0 +1,45 @@
+{
+  "label": "hash-256",
+  "bots": 256,
+  "seconds": 45,
+  "entities": 882,
+  "ticks": 1352,
+  "tickP50": 15.82,
+  "tickP95": 29.16,
+  "tickP99": 32.18,
+  "tickMax": 51.81,
+  "top": [
+    {
+      "f": "spatialHashPairs spatial.ts",
+      "ms": 5685
+    },
+    {
+      "f": "next bot.ts",
+      "ms": 5226
+    },
+    {
+      "f": "ofKind world.ts",
+      "ms": 3995
+    },
+    {
+      "f": "resolveCollisions collision.ts",
+      "ms": 1292
+    },
+    {
+      "f": "wrapDelta arena.ts",
+      "ms": 1118
+    },
+    {
+      "f": "isKind world.ts",
+      "ms": 1034
+    },
+    {
+      "f": "overlaps collision.ts",
+      "ms": 740
+    },
+    {
+      "f": "(garbage collector) ",
+      "ms": 534
+    }
+  ]
+}

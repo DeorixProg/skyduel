@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
 import { type Input, playerId, type Seq, seq } from "@skyduel/shared/types.ts";
+import { test } from "vitest";
 import { Match } from "../src/match.ts";
 
 const arena = { balloons: 0, hunters: 0 };

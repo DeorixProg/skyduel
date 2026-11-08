@@ -10,7 +10,11 @@ const out = process.argv[4] ?? "docs/lab05/run";
 const video = process.argv[5] === "video";
 fs.mkdirSync("docs/lab05", { recursive: true });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const browser = await chromium.launch({ channel: "chrome", headless: false });
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: ["--mute-audio"],
+  headless: false,
+});
 
 async function pilot(name, x) {
   const ctx = await browser.newContext({
