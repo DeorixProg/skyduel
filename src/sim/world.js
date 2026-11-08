@@ -23,7 +23,9 @@ export class World {
     this.rng = createRng(seed);
     this.collide = collide; // swappable collision system
     this.time = 0;
-    this.events = []; // drained by the game each frame (Lab 3 turns this into an EventTarget bus)
+    // Event bus: the sim only DISPATCHES; audio, HUD, logs subscribe from outside.
+    // EventTarget/CustomEvent exist in browsers and in Node, so the sim stays portable.
+    this.bus = new EventTarget();
     this.lastCollisions = 0;
     this.pickupTimer = 6;
   }
@@ -59,7 +61,7 @@ export class World {
   }
 
   emit(type, detail = {}) {
-    this.events.push({ type, t: this.time, ...detail });
+    this.bus.dispatchEvent(new CustomEvent(type, { detail: { t: this.time, ...detail } }));
   }
 
   /** One fixed step: inputs → update → homing → collisions → spawns → sweep. */

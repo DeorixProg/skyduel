@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "images": [{ "id": "sheet", "url": "/assets/sprites/sheet.png", "required": false }],
+  "sounds": [
+    { "id": "shoot", "url": "/assets/sounds/shoot.wav" },
+    { "id": "hit", "url": "/assets/sounds/hit.wav" },
+    { "id": "explosion", "url": "/assets/sounds/explosion.wav" },
+    { "id": "pickup", "url": "/assets/sounds/pickup.wav" }
+  ],
+  "json": [{ "id": "atlas", "url": "/assets/sprites/sheet.json", "required": false }]
+}

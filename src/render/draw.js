@@ -16,10 +16,10 @@ function makeClouds(n, seed) {
   }));
 }
 
-export function drawBackground(ctx) {
+export function drawBackground(ctx, sky = ["#5b9bd5", "#a9d2f0"]) {
   const g = ctx.createLinearGradient(0, 0, 0, ARENA.height);
-  g.addColorStop(0, "#5b9bd5");
-  g.addColorStop(1, "#a9d2f0");
+  g.addColorStop(0, sky[0]);
+  g.addColorStop(1, sky[1]);
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, ARENA.width, ARENA.height);
 
@@ -177,29 +177,6 @@ export function drawExplosion(ctx, e) {
     ctx.arc(p.x, p.y, p.r * (0.5 + k), 0, Math.PI * 2);
     ctx.fill();
   }
-}
-
-export function drawShipEntity(ctx, s, time, pos = s.pos, angle = s.angle) {
-  if (s.down) return;
-  const view = { x: pos.x, y: pos.y, angle, thrust: s.thrust };
-  drawShip(ctx, view, { color: s.color, time });
-  if (s.effects.has("shield")) {
-    ctx.strokeStyle = "rgba(41,128,185,0.8)";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(pos.x, pos.y, s.radius + 8, 0, Math.PI * 2);
-    ctx.stroke();
-  }
-  // name + hp bar
-  ctx.fillStyle = "rgba(0,0,0,0.4)";
-  ctx.fillRect(pos.x - 20, pos.y - 34, 40, 5);
-  ctx.fillStyle = s.hp > 50 ? "#27ae60" : s.hp > 25 ? "#f39c12" : "#c0392b";
-  ctx.fillRect(pos.x - 20, pos.y - 34, 40 * (s.hp / 100), 5);
-  ctx.fillStyle = "#1b2631";
-  ctx.font = "12px system-ui";
-  ctx.textAlign = "center";
-  ctx.fillText(s.name, pos.x, pos.y - 39);
-  ctx.textAlign = "start";
 }
 
 export function drawScoreboard(ctx, ships, viewWidth) {

@@ -1,122 +1,160 @@
-import { AUTOPILOT, createRecorder, EXP, loopMode, maybeBlock } from "./experiments.js";
-import { createInput, readControls } from "./input.js";
-import { createLoop } from "./loop.js";
-import { cameraFor, setupCanvas } from "./render/canvas.js";
-import {
-  drawBackground,
-  drawBalloon,
-  drawBullet,
-  drawExplosion,
-  drawHud,
-  drawPickup,
-  drawScoreboard,
-  drawShipEntity,
-} from "./render/draw.js";
-import { ARENA, wrapDelta } from "./sim/arena.js";
-import { Ship } from "./sim/entities.js";
-import { lerpAngle } from "./sim/ship.js";
-import { Vector2 } from "./sim/vector.js";
-import { World } from "./sim/world.js";
+import { loadAll, loadJson } from "./assets/loader.js";
+import { createAudio } from "./audio.js";
+import { startGame } from "./game.js";
+import { createInput } from "./input.js";
+import { Lobby } from "./lobby/lobby.js";
+import { mountLobbyView } from "./lobby/lobby-view.js";
+import { setupCanvas } from "./render/canvas.js";
+import { drawLoading } from "./render/loading.js";
+import { createSprites } from "./render/sprites.js";
 
+/*
+ * Boot sequence: loading screen → lobby → game.
+ *
+ * Failure gallery (Lab 3), reproducible by query string; faults apply only to
+ * the FIRST load attempt, so the Retry button demonstrates recovery:
+ *   ?fail=404      sprite sheet answers 404   → not retried, vector fallback, game starts
+ *   ?fail=503      sprite sheet answers 503 twice → retried with backoff, then loads
+ *   ?fail=timeout  manifest takes 6 s, timeout 1.5 s ×3 → Retry button
+ *   ?fail=abort    load aborted after 250 ms (same as pressing Esc) → Retry button
+ *   ?fail=badjson  sprite atlas is corrupt JSON → not retried, vector fallback
+ *   ?fail=rooms    /api/rooms times out → lobby shows the error and keeps polling
+ *   ?roomslag=1500 /api/rooms answers in 1.5 s (to catch a request in flight on leave)
+ *   ?netlag=150    every asset response delayed 150 ms (timing experiment)
+ *   ?load=seq      sequential awaits instead of Promise.all (timing experiment)
+ */
 const params = new URLSearchParams(location.search);
+const FAIL = params.get("fail");
+const NETLAG = Number(params.get("netlag") ?? 0);
 const view = setupCanvas(document.getElementById("game"));
 const input = createInput(window);
-const recorder = createRecorder();
+const audio = createAudio();
+const retryBtn = document.getElementById("retry");
+const lobbyRoot = document.getElementById("lobby");
 
-const world = new World({ seed: Number(params.get("seed") ?? 22) });
-const player = world.spawn(
-  new Ship({ pos: new Vector2(400, 450), angle: 0, name: "Maksym", color: "#c0392b" }),
-);
-const drone = world.spawn(
-  new Ship({ pos: new Vector2(1200, 450), angle: Math.PI, name: "Drone", color: "#2c3e50" }),
-);
-drone.controller = trainingDrone;
-world.populate();
+// Autoplay policy: the AudioContext may only start inside a user gesture.
+for (const type of ["pointerdown", "keydown"]) {
+  window.addEventListener(type, () => audio.unlock(), { once: true });
+}
 
-/**
- * Training drone: flies wide circles and fires when the player is ahead.
- * A plain function of (ship, world) — reads state, returns controls.
- */
-function trainingDrone(ship, w) {
-  const target = w.get(player.id);
-  let fire = false;
-  if (target && !target.down) {
-    const dx = wrapDelta(ship.pos.x, target.pos.x, ARENA.width);
-    const dy = wrapDelta(ship.pos.y, target.pos.y, ARENA.height);
-    let off = Math.atan2(dy, dx) - ship.angle;
-    off = Math.atan2(Math.sin(off), Math.cos(off));
-    fire = Math.abs(off) < 0.15 && Math.hypot(dx, dy) < 500;
+const withQuery = (url, q) => `${url}${url.includes("?") ? "&" : "?"}${q}`;
+let cycle = 0;
+
+async function boot() {
+  cycle++;
+  const faulty = cycle === 1;
+  const state = {
+    title: "Завантаження ресурсів…",
+    done: 0,
+    total: 0,
+    items: new Map(),
+    error: null,
+  };
+  let drawing = true;
+  const paint = () => {
+    drawLoading(view.ctx, view, state);
+    if (drawing) requestAnimationFrame(paint);
+  };
+  requestAnimationFrame(paint);
+
+  const ac = new AbortController();
+  const onEsc = (e) => {
+    if (e.code === "Escape") ac.abort(new DOMException("скасовано гравцем", "AbortError"));
+  };
+  window.addEventListener("keydown", onEsc);
+  if (faulty && FAIL === "abort") {
+    setTimeout(() => ac.abort(new DOMException("скасовано гравцем", "AbortError")), 250);
   }
-  return { thrust: true, turn: 0.35, fire };
-}
 
-// ── Lab 2: the `this` bug, reproducible with ?bug=this ─────────────────────────
-// Passing a method as a bare function loses its receiver. For a DOM listener,
-// `this` becomes the event target (window), and the private-field access in
-// fire() throws: "Cannot read private member #cooldown from an object whose
-// class did not declare it". Fixes are discussed in the README.
-const BUG = params.get("bug");
-if (BUG === "this") window.addEventListener("keydown", player.fire);
-if (BUG === "arrow") window.addEventListener("keydown", () => player.fire());
-if (BUG === "bind") window.addEventListener("keydown", player.fire.bind(player));
+  const rewrite = (item, attempt) => {
+    let url = item.url;
+    if (faulty && FAIL === "404" && item.id === "sheet") url = withQuery(url, "status=404");
+    if (faulty && FAIL === "503" && item.id === "sheet" && attempt < 3)
+      url = withQuery(url, "status=503");
+    if (faulty && FAIL === "badjson" && item.id === "atlas") url = "/assets/arenas/broken.json";
+    if (NETLAG) url = withQuery(url, `lag=${NETLAG}`);
+    return url;
+  };
+  const onRetry = ({ item, attempt, delay, err }) => {
+    const s = state.items.get(item) ?? {};
+    state.items.set(item, {
+      ...s,
+      state: "retry",
+      note: `спроба ${attempt} невдала (${err.message}), пауза ${delay.toFixed(0)} мс`,
+    });
+    console.info("retry", item, attempt, Math.round(delay), err.message);
+  };
 
-let simTime = 0;
-function simulate(dt) {
-  const controls = AUTOPILOT ? { thrust: true, turn: 0.25, fire: true } : readControls(input);
-  world.step(dt, new Map([[player.id, controls]]));
-  simTime += dt;
-  input.endStep();
-  hud.collisions = world.lastCollisions;
-  for (const ev of world.events) if (ev.type === "exploded") hud.kills.push(ev);
-  world.events.length = 0;
-}
-
-const hud = { collisions: 0, kills: [] };
-
-function lerpPos(e, alpha) {
-  const a = e.prevPos ?? e.pos;
-  const dx = wrapDelta(a.x, e.pos.x, ARENA.width);
-  const dy = wrapDelta(a.y, e.pos.y, ARENA.height);
-  if (dx * dx + dy * dy > 200 * 200) return e.pos; // respawn teleport: don't smear
-  return new Vector2(a.x + dx * alpha, a.y + dy * alpha);
-}
-
-function render(alpha, stats) {
-  recorder.mark(performance.now());
-  maybeBlock();
-  const { ctx } = view;
-  const cam = cameraFor(view, ARENA);
-  ctx.fillStyle = "#0b1d2e";
-  ctx.fillRect(0, 0, view.width, view.height);
-  ctx.save();
-  ctx.translate(cam.ox, cam.oy);
-  ctx.scale(cam.scale, cam.scale);
-  ctx.beginPath();
-  ctx.rect(0, 0, ARENA.width, ARENA.height);
-  ctx.clip();
-  drawBackground(ctx);
-
-  for (const e of world) {
-    const pos = lerpPos(e, alpha);
-    const angle = lerpAngle(e.prevAngle ?? e.angle, e.angle, alpha);
-    if (e.kind === "balloon") drawBalloon(ctx, e, pos, angle);
-    else if (e.kind === "pickup") drawPickup(ctx, e, pos, angle);
-    else if (e.kind === "bullet") drawBullet(ctx, e, pos, angle);
-    else if (e.kind === "explosion") drawExplosion(ctx, e);
-    else if (e.kind === "ship") drawShipEntity(ctx, e, simTime, pos, angle);
+  try {
+    let manifestUrl = "/assets/manifest.json";
+    if (faulty && FAIL === "timeout") manifestUrl = withQuery(manifestUrl, "lag=6000");
+    state.items.set("manifest", { state: "loading" });
+    const manifest = await loadJson(manifestUrl, {
+      signal: ac.signal,
+      timeoutMs: 1500,
+      attempts: 3,
+      onRetry: (info) => onRetry({ item: "manifest", ...info }),
+    });
+    state.items.set("manifest", { state: "ok" });
+    for (const group of [manifest.images, manifest.sounds, manifest.json]) {
+      for (const i of group) state.items.set(i.id, { state: "pending" });
+    }
+    const { assets, ms } = await loadAll(manifest, {
+      audioCtx: audio.ctx,
+      signal: ac.signal,
+      sequential: params.get("load") === "seq",
+      rewrite,
+      onRetry,
+      onProgress: ({ done, total, item, state: st, error }) => {
+        state.done = done;
+        state.total = total;
+        state.items.set(item, { state: st, note: error ? `${error.name}: ${error.message}` : "" });
+      },
+    });
+    window.__load = { ms, mode: params.get("load") === "seq" ? "sequential" : "concurrent" };
+    console.info("assets loaded in", ms.toFixed(0), "ms");
+    audio.setBuffers(assets);
+    const sprites = createSprites(assets.sheet, assets.atlas);
+    showLobby(sprites);
+  } catch (err) {
+    state.error =
+      err.name === "AbortError"
+        ? `Завантаження скасовано (${err.message}).`
+        : `Не вдалося завантажити гру: ${err.name}: ${err.message}`;
+    retryBtn.hidden = false;
+    retryBtn.focus();
+  } finally {
+    window.removeEventListener("keydown", onEsc);
+    setTimeout(() => {
+      drawing = false;
+    }, 50);
   }
-  ctx.restore();
-
-  drawHud(ctx, stats, [
-    `entities ${world.size}`,
-    `contacts ${hud.collisions}`,
-    `hp       ${player.hp}${player.down ? ` (respawn ${player.respawnIn.toFixed(1)})` : ""}`,
-    `mode     ${EXP}`,
-  ]);
-  drawScoreboard(ctx, world.ofKind("ship"), view.width);
 }
 
-const loop = createLoop({ step: 1 / 60, simulate, render, mode: loopMode() });
-loop.start();
+function showLobby(sprites) {
+  let url = FAIL === "rooms" ? "/api/rooms.json?lag=5000" : "/api/rooms.json";
+  if (params.has("roomslag")) url = `/api/rooms.json?lag=${params.get("roomslag")}`;
+  const lobby = new Lobby({ url, intervalMs: 3000, timeoutMs: 2000 });
+  const lobbyView = mountLobbyView(lobbyRoot, lobby);
+  lobby.addEventListener("join", (e) => {
+    lobbyView.unmount();
+    const { arena, name, warning } = e.detail;
+    if (warning) console.warn(warning);
+    window.__game = startGame({ view, input, sprites, audio, arena, name, params });
+    window.__lobby = lobby;
+  });
+  lobby.show();
+  window.__lobby = lobby;
+  if (params.has("autojoin")) {
+    lobby.addEventListener("rooms", () => lobby.join(params.get("autojoin") || "somme", "Maksym"), {
+      once: true,
+    });
+  }
+}
 
-window.__game = { loop, recorder, world, player, drone };
+retryBtn.addEventListener("click", () => {
+  retryBtn.hidden = true;
+  boot();
+});
+
+boot();

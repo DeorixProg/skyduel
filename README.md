@@ -8,6 +8,7 @@
 |---|---|---|
 | 1 | `lab-01` | ігровий цикл з фіксованим кроком, біплан, керування, три експерименти |
 | 2 | `lab-02` | сутності, `World` на `Map`, кулі, аеростати, зіткнення, вибухи, респаун, homing і бонуси через композицію |
+| 3 | `lab-03` | завантаження ассетів з прогресом, повторами і abort, спрайти, Web Audio, шина подій, лобі |
 
 ## Запуск
 
@@ -352,3 +353,170 @@ Entity
 | лопнуло аеростатів | 4 |
 | підібрано бонусів | 1 |
 | помилок у консолі | 0 |
+
+---
+
+## Лабораторна 3. Асинхронний JavaScript: Promises, async/await і екран завантаження
+
+Порядок запуску: **екран завантаження → лобі → гра**.
+
+![loading](docs/lab03/loading.png) ![lobby](docs/lab03/lobby.png)
+
+![game](docs/lab03/game.png)
+
+### Що зроблено
+
+| Файл | Зміст |
+|---|---|
+| `public/assets/manifest.json` | список ассетів: спрайтшит, 4 звуки, атлас спрайтів |
+| `src/assets/loader.js` | `fetchOk` (перевіряє `res.ok`, `AbortSignal.any([signal, AbortSignal.timeout(ms)])`), `fetchJson`, `fetchImage` (fetch → Blob → `createImageBitmap`, на відміну від `new Image()` його можна перервати), `fetchAudio` (декодування в `AudioBuffer` ще під час завантаження), `withRetry`, `loadAll` |
+| `src/render/loading.js` | екран завантаження на канвасі: справжній прогрес-бар і статус кожного файлу |
+| `src/render/sprites.js` | малювання через `drawImage` з прямокутником-джерелом з атласу; якщо спрайтшит не завантажився — векторна графіка з лаб 1–2 |
+| `src/audio.js` | Web Audio: `AudioContext`, `resume()` на перший жест гравця, буфери, стерео-панорама за позицією на арені |
+| `src/hud.js` | стрічка подій («Maksym ✈ збив Drone», підібрані бонуси) |
+| `src/lobby/lobby.js` | `class Lobby extends EventTarget`: `show`/`refresh`/`join`/`leave`, опитування кожні 3 с, таймаут 2 с на запит, abort при виході |
+| `src/lobby/lobby-view.js` | DOM лобі; лише слухає події `Lobby` |
+| `vite.config.js` | middleware для відтворюваних збоїв: `?lag=мс`, `?status=код` |
+| `tools/make-sprites.*`, `tools/make-sounds.py` | спрайтшит рендериться з векторного коду гри, звуки синтезуються |
+
+**`withRetry(fn, { attempts, baseMs, signal })`.** Пауза перед спробою *n* — випадкове число з
+`[0, baseMs · 2^(n−1))` (exponential backoff з *full jitter*), тож сотні клієнтів після збою
+не почнуть повторювати запити одночасно. Повторюються лише тимчасові збої:
+- 5xx і 429;
+- `TimeoutError` нашого таймауту;
+- мережевий `TypeError`.
+
+**Не** повторюються:
+- 4xx — запит неправильний, і повтор нічого не змінить;
+- `SyntaxError` битого JSON;
+- `AbortError` — гравець сам скасував завантаження.
+
+Пауза теж слухає `signal`, тож скасування перериває і очікування.
+
+**`loadAll`** запускає всі завантаження одночасно через `Promise.all`. Кожен елемент повідомляє
+свій стан (`loading → ok | skipped | failed | retry`), тому прогрес-бар показує реальну кількість
+готових файлів, а не таймер. Гра стартує лише після `await loadAll(...)`.
+
+Обов'язковий тут лише сам `manifest.json`. Якщо не завантажився спрайтшит, гра малює вектором;
+якщо звук — грає беззвучно.
+
+**Шина подій.** `World` має `bus = new EventTarget()`, а `emit()` робить
+`dispatchEvent(new CustomEvent(type, { detail }))`. Події: `fired`, `hit`, `exploded`, `popped`,
+`pickup`, `respawned`.
+
+`src/sim/**` **не імпортує** ні `audio.js`, ні `hud.js`. Підписуються вони ззовні, у `game.js`.
+`EventTarget` і `CustomEvent` є і в Node, тому симуляція лишається переносною (це знадобиться в лабі 5).
+
+**Звук.** `AudioContext` створюється одразу. Через autoplay policy він стартує у стані `suspended`,
+але вже дає змогу *декодувати* буфери під час завантаження. `resume()` викликається в першому
+`pointerdown`/`keydown` — клік по кімнаті чи «Join» якраз і є таким жестом.
+
+### Sequential `await` vs `Promise.all`
+
+Шість файлів, 5 прогонів кожного режиму в Chrome (`tools/measure-lab3.mjs`). Перемикається через `?load=seq`.
+
+| Умови | Послідовно (`for … await`), медіана | Конкурентно (`Promise.all`), медіана | Прискорення |
+|---|---|---|---|
+| штучна затримка 150 мс на відповідь (`?netlag=150`) | **961 мс** (942–974) | **170 мс** (166–173) | 5.7× |
+| localhost без затримки | 42 мс | 23 мс | 1.8× |
+
+Послідовний варіант платить затримку мережі *за кожен файл*: 6 × 150 мс + декодування ≈ 0.95 с.
+Конкурентний платить її один раз, бо всі запити летять паралельно (HTTP/1.1 дозволяє 6 з'єднань
+на хост, тут рівно 6 файлів). На localhost виграш менший: домінує не мережа, а декодування
+PNG і WAV.
+
+### П'ять головоломок порядку виконання
+
+Виконано в Chrome (`tools/puzzles.mjs`), нижче — реальний вивід.
+
+**1. `await`**
+```js
+async function a() { log("a1"); await null; log("a2"); }
+log("start"); a(); Promise.resolve().then(() => log("then")); log("end");
+```
+`start, a1, end, a2, then` — тіло `async`-функції до першого `await` виконується синхронно.
+Продовження після `await` стає мікрозадачею, поставленою *раніше* за `.then`, тому `a2` іде перед `then`.
+
+**2. `setTimeout` всередині `.then`**
+```js
+setTimeout(() => log("timeout A"));
+Promise.resolve().then(() => { log("then 1"); setTimeout(() => log("timeout B")); })
+                 .then(() => log("then 2"));
+queueMicrotask(() => log("microtask")); log("sync");
+```
+`sync, then 1, microtask, then 2, timeout A, timeout B`. Спершу синхронний код, потім **уся** черга
+мікрозадач, включно з `then 2`, яку додала `then 1`. Лише після цього задачі в порядку постановки:
+`timeout B` поставлено пізніше за `timeout A`.
+
+**3. `requestAnimationFrame`**
+```js
+requestAnimationFrame(() => { log("raf 1");
+  Promise.resolve().then(() => log("raf 1 -> then"));
+  setTimeout(() => log("raf 1 -> timeout")); });
+requestAnimationFrame(() => log("raf 2"));
+setTimeout(() => log("timeout")); Promise.resolve().then(() => log("then")); log("sync");
+```
+`sync, then, timeout, raf 1, raf 1 -> then, raf 2, raf 1 -> timeout`. rAF — не задача і не
+мікрозадача, а крок рендерингу. Тут таймер виконався раніше, бо до кадру лишалося кілька мс (на
+180 Гц моніторі кадр кожні 5.6 мс). Мікрозадачі вичерпуються **після кожного** rAF-колбека, тому
+`raf 1 -> then` іде перед `raf 2`. А таймер, поставлений у rAF, виконується вже після всіх
+колбеків цього кадру.
+
+**4. `async`-функція, що повертає проміс**
+```js
+async function f() { return Promise.resolve("f"); }
+async function g() { return "g"; }
+f().then(log); g().then(log);
+Promise.resolve().then(() => log("p1")).then(() => log("p2")).then(() => log("p3"));
+```
+`g, p1, p2, f, p3`. Повернення *промісу* з `async`-функції коштує ще два «тіки» мікрозадач: спершу
+`then`-job, щоб прийняти проміс, і лише потім розв'язання зовнішнього промісу. Тому `f` відстає від
+`g` на дві ланки ланцюжка. (Висновок: `return await x` і `return x` в async відрізняються не лише
+обробкою помилок.)
+
+**5. `dispatchEvent` синхронний**
+```js
+bus.addEventListener("hit", () => { log("listener 1"); Promise.resolve().then(() => log("listener 1 -> then")); });
+bus.addEventListener("hit", () => log("listener 2"));
+log("before dispatch"); bus.dispatchEvent(new Event("hit")); log("after dispatch"); await null; log("after await");
+```
+`before dispatch, listener 1, listener 2, after dispatch, listener 1 -> then, after await`.
+`dispatchEvent` викликає слухачів синхронно, прямо всередині поточного стека. Мікрозадача зі
+слухача 1 чекає, поки стек спорожніє, тобто після `after dispatch`. Для справжнього кліку
+користувача було б інакше: браузер викликає кожного слухача з порожнього стека, і мікрозадачі
+вичерпуються *між* слухачами. Для гри це означає, що `world.emit()` під час кроку симуляції
+синхронно викликає звук і HUD усередині `World.step`, тож слухачі мають бути дешевими.
+
+### Галерея збоїв
+
+Кожен збій відтворюється параметром у URL і застосовується лише до першої спроби. Тому «Спробувати ще раз»
+показує відновлення. Записано `tools/measure-lab3.mjs`, лог консолі — у `docs/lab03/results.json`.
+
+| Збій | Як відтворити | Що відбувається | Результат |
+|---|---|---|---|
+| **404 спрайтшита** | `?fail=404` | `HttpError 404` → **без повторів** (4xx) → `skipped` | гра стартує, у HUD `sprites: vector fallback` ([лобі](docs/lab03/fail-404-lobby.png), [гра](docs/lab03/fail-404-game.png)) |
+| **503 двічі** | `?fail=503` | `retry sheet 1, пауза 174 мс` → `retry sheet 2, пауза 13 мс` → успіх | завантажено за 221 мс, гра зі спрайтами |
+| **Таймаут мережі** | `?fail=timeout` (маніфест відповідає за 6 с, таймаут 1.5 с) | 3 спроби по `TimeoutError: signal timed out` з backoff | через **4.97 с** — повідомлення і кнопка; після натискання гра завантажується ([скрін](docs/lab03/fail-timeout.png)) |
+| **Abort посеред завантаження** | `?fail=abort` (або **Esc**) | `AbortController.abort()` через 250 мс; усі `fetch` і паузи backoff перериваються; `AbortError` не повторюється | «Завантаження скасовано» + кнопка; повтор успішний ([скрін](docs/lab03/fail-abort.png)) |
+| **Битий JSON** | `?fail=badjson` (атлас підмінено на зламаний файл) | `SyntaxError: Expected double-quoted property name…` → без повторів → `skipped` | гра стартує з векторною графікою ([скрін](docs/lab03/fail-badjson-game.png)) |
+| Сервер лобі не відповідає | `?fail=rooms` | `TimeoutError` кожні 3 с | лобі показує помилку і продовжує опитування ([скрін](docs/lab03/fail-rooms.png)) |
+
+Спершу маніфест помилково позначав спрайтшит як `required`, і 404 приводив до кнопки повтору
+замість fallback. Зловив це саме прогін галереї.
+
+Крім того, якщо зламаний JSON має арена кімнати, `Lobby.join` ловить помилку і запускає гру на
+стандартній арені з попередженням у консолі.
+
+### Лобі: опитування й abort під час виходу
+
+`?roomslag=1500` змушує `/api/rooms` відповідати 1.5 с. Тест чекає, поки третій запит опитування
+ще в дорозі, і натискає «Join».
+
+| До Join | Після Join (+6 с) |
+|---|---|
+| запитів: 3 | запитів: **3** (опитування зупинилось) |
+| | перервано запитів: **1** (`abort` у `leave()`) |
+| | `lobby.active === false` |
+
+Подія `rooms` після старту гри вже не приходить: перерваний запит потрапляє в `catch`, бачить
+`signal.aborted` і тихо завершується. Це не помилка, а свідомий вихід.

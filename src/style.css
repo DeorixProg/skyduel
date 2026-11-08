@@ -11,3 +11,78 @@ body {
   width: 100vw;
   height: 100vh;
 }
+
+#lobby {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(11, 29, 46, 0.55);
+}
+#lobby[hidden],
+#retry[hidden] {
+  display: none;
+}
+.panel {
+  min-width: 340px;
+  padding: 20px 28px;
+  border-radius: 10px;
+  background: #f4f1e8;
+  color: #1b2631;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+.panel h1 {
+  margin: 0 0 12px;
+}
+.panel h2 {
+  margin: 16px 0 6px;
+  font-size: 16px;
+}
+.panel input {
+  margin-left: 8px;
+  padding: 4px 6px;
+}
+#rooms {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.room {
+  padding: 8px 10px;
+  margin: 4px 0;
+  border: 1px solid #b9b2a0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.room.selected {
+  background: #c0392b;
+  color: #fff;
+}
+.muted {
+  color: #6c7a89;
+  font-size: 13px;
+}
+.error {
+  color: #c0392b;
+  font-size: 13px;
+}
+#join,
+#retry {
+  margin-top: 10px;
+  padding: 8px 22px;
+  font-size: 16px;
+  border: 0;
+  border-radius: 6px;
+  background: #c0392b;
+  color: #fff;
+  cursor: pointer;
+}
+#join:disabled {
+  background: #95a5a6;
+}
+#retry {
+  position: fixed;
+  left: 50%;
+  bottom: 18%;
+  transform: translateX(-50%);
+}

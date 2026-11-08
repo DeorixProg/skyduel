@@ -1,0 +1,88 @@
+{
+  "404": {
+    "started": true,
+    "logs": [
+      "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+      "info: assets loaded in 14 ms"
+    ]
+  },
+  "503": {
+    "lobby": true,
+    "logs": [
+      "error: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "info: retry sheet 1 174 HTTP 503 for /assets/sprites/sheet.png?status=503",
+      "error: Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "info: retry sheet 2 13 HTTP 503 for /assets/sprites/sheet.png?status=503",
+      "info: assets loaded in 221 ms"
+    ]
+  },
+  "timeout": {
+    "msUntilRetryButton": 4967,
+    "recoveredAfterRetry": true,
+    "logs": [
+      "info: retry manifest 1 107 signal timed out",
+      "info: retry manifest 2 70 signal timed out",
+      "info: assets loaded in 18 ms"
+    ]
+  },
+  "abort": {
+    "recoveredAfterRetry": true,
+    "logs": [
+      "info: assets loaded in 421 ms"
+    ]
+  },
+  "badjson": {
+    "started": true,
+    "logs": [
+      "info: assets loaded in 30 ms"
+    ]
+  },
+  "rooms": {
+    "status": "не вдалося оновити список: TimeoutError: signal timed out — повтор через 3 с",
+    "logs": [
+      "info: assets loaded in 23 ms"
+    ]
+  },
+  "timing_seq": [
+    965.1000000014901,
+    974.0999999996275,
+    941.5,
+    961.3000000007451,
+    950.5999999996275
+  ],
+  "timing_concurrent": [
+    170.19999999925494,
+    172.7999999988824,
+    169.69999999925494,
+    172.2000000011176,
+    166.09999999962747
+  ],
+  "timing_local_seq": [
+    41.69999999925494,
+    43.40000000037253,
+    42.5,
+    42.40000000037253,
+    41.59999999962747
+  ],
+  "timing_local_concurrent": [
+    21.800000000745058,
+    22.800000000745058,
+    24.199999999254942,
+    23.199999999254942,
+    22.199999999254942
+  ],
+  "lobby": {
+    "before": {
+      "requests": 3
+    },
+    "after": {
+      "requests": 3,
+      "aborted": 1,
+      "active": false
+    },
+    "audio": "ok",
+    "logs": [
+      "info: assets loaded in 325 ms"
+    ]
+  }
+}
