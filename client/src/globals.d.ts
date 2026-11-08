@@ -5,6 +5,8 @@ import type { NetGame } from "./net/netgame.ts";
 
 /** Debug handles used by the measurement scripts (Playwright reads them). */
 declare global {
+  /** Git SHA of the build, injected by vite.config.ts. */
+  const __APP_VERSION__: string;
   interface Window {
     __game?: LocalGame | NetGame;
     __lobby?: Lobby;

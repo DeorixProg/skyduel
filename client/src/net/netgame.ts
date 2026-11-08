@@ -432,6 +432,7 @@ export function startNetGame({
       `ship     #${myShipId}`,
       `hp       ${mine?.hp ?? "-"}`,
       `arena    ${arena.name}`,
+      `build    ${__APP_VERSION__}`,
     ]);
     scoreRows.length = 0;
     for (const e of latest?.entities.values() ?? []) {

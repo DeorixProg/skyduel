@@ -1,6 +1,7 @@
 /** Process-wide counters, exposed by /api/stats (and /metrics in Lab 8). */
 export interface Stats {
   connections: number;
+  disconnections: number;
   players: number;
   httpRequests: number;
   messagesIn: number;
@@ -16,6 +17,7 @@ export interface Stats {
 export function createStats(): Stats {
   return {
     connections: 0,
+    disconnections: 0,
     players: 0,
     httpRequests: 0,
     messagesIn: 0,

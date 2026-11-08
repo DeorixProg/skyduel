@@ -5,6 +5,7 @@ import type { ServerConfig } from "./config.ts";
 import { createHttpHandler } from "./http.ts";
 import { startMatchLog } from "./log/matchlog.ts";
 import { errFields, type Logger } from "./logger.ts";
+import { createMetrics } from "./metrics.ts";
 import { RoomManager } from "./rooms.ts";
 import { createStats, type Stats } from "./stats.ts";
 import { attachWebSocket } from "./ws.ts";
@@ -51,8 +52,14 @@ export function createApp({ config, logger }: { config: ServerConfig; logger: Lo
   );
   rooms.on("deleted", (room) => logger.info({ room: room.id }, "room deleted"));
 
-  const httpServer = http.createServer(createHttpHandler({ config, rooms, logger, stats }));
-  const ws = attachWebSocket({ httpServer, config, rooms, logger, stats });
+  const metrics = createMetrics({ rooms, stats });
+  let accepting = true;
+  const isReady = () =>
+    accepting && stats.connections - stats.disconnections < config.maxConnections;
+  const httpServer = http.createServer(
+    createHttpHandler({ config, rooms, logger, stats, metrics, isReady }),
+  );
+  const ws = attachWebSocket({ httpServer, config, rooms, logger, stats, metrics });
   for (const r of DEFAULT_ROOMS) rooms.create({ ...r, persistent: true });
 
   let closing: Promise<void> | null = null;
@@ -73,6 +80,7 @@ export function createApp({ config, logger }: { config: ServerConfig; logger: Lo
     /** Graceful: stop accepting → shutdown msg + 1001 → close rooms → flush logs. */
     close() {
       closing ??= (async () => {
+        accepting = false; // /ready → 503 at once, so a proxy stops sending new players
         httpServer.close();
         await ws.close();
         rooms.closeAll();

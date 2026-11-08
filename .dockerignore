@@ -1,0 +1,14 @@
+**/node_modules
+**/dist
+**/logs
+**/coverage
+.git
+.github
+docs
+tools
+e2e
+test-results
+playwright-report
+**/*.cpuprofile
+**/.env
+*.md

@@ -1,0 +1,12 @@
+{
+  "registration": {
+    "scope": "http://localhost:8096/",
+    "active": "activated",
+    "waiting": null,
+    "installing": null
+  },
+  "installabilityErrors": [],
+  "manifestErrors": [],
+  "manifestUrl": "http://localhost:8096/manifest.webmanifest",
+  "serviceWorker": "controlling: http://localhost:8096/sw.js"
+}

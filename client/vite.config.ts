@@ -1,5 +1,16 @@
+import { execFileSync } from "node:child_process";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { defineConfig, type Plugin } from "vite";
+
+/** Version stamp shown in the HUD: GIT_SHA from CI/Docker, else the local commit. */
+function gitSha(): string {
+  if (process.env.GIT_SHA) return process.env.GIT_SHA.slice(0, 12);
+  try {
+    return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], { encoding: "utf8" }).trim();
+  } catch {
+    return "dev";
+  }
+}
 
 /**
  * Dev/preview middleware for the Lab 3 failure gallery and timing experiments.
@@ -37,6 +48,7 @@ function networkFaults(): Plugin {
 
 export default defineConfig({
   plugins: [networkFaults()],
+  define: { __APP_VERSION__: JSON.stringify(gitSha()) },
   server: {
     // in development the API and the socket live on the Node server (port 8080)
     proxy: {

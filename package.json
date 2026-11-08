@@ -1,7 +1,7 @@
 {
   "name": "skyduel",
   "private": true,
-  "version": "0.7.0",
+  "version": "1.0.0",
   "type": "module",
   "description": "SkyDuel — real-time multiplayer biplane dogfight in the browser",
   "workspaces": [

@@ -1,0 +1,18 @@
+# Production-like local run: docker compose up --build  →  http://localhost:8080
+services:
+  skyduel:
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-dev}
+    image: skyduel:local
+    ports:
+      - "8080:8080"
+    environment:
+      LOG_LEVEL: info
+      ALLOWED_ORIGINS: http://localhost:8080
+      MAX_CONNECTIONS_PER_IP: "8"
+      MAX_ROOMS: "50"
+      MAX_PLAYERS_PER_ROOM: "8"
+    stop_grace_period: 10s
+    restart: unless-stopped

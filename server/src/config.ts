@@ -41,6 +41,20 @@ export const ConfigSchema = z
     ENABLE_SLOW_ENDPOINT: flag, // Lab 4 demo only
     SIM_CHAOS: flag, // Lab 5 experiment only
     COLLISION: z.enum(["naive", "hash"]).default("hash"), // Lab 7: broad phase (see README)
+    // Lab 8: abuse limits. Origins: comma-separated list of exact origins allowed to open a socket.
+    // unset → the server's own origin (+ the Vite dev server); set it explicitly in production
+    ALLOWED_ORIGINS: z
+      .string()
+      .optional()
+      .transform((s) =>
+        (s ?? "")
+          .split(",")
+          .map((o) => o.trim())
+          .filter(Boolean),
+      )
+      .pipe(z.array(z.url())),
+    MAX_CONNECTIONS: int(1, 100_000, 2000),
+    MAX_CONNECTIONS_PER_IP: int(1, 10_000, 8),
   })
   .transform((e) => ({
     port: e.PORT,
@@ -58,6 +72,12 @@ export const ConfigSchema = z
     enableSlowEndpoint: e.ENABLE_SLOW_ENDPOINT,
     simChaos: e.SIM_CHAOS,
     collision: e.COLLISION,
+    allowedOrigins:
+      e.ALLOWED_ORIGINS.length > 0
+        ? e.ALLOWED_ORIGINS
+        : [`http://localhost:${e.PORT}`, `http://127.0.0.1:${e.PORT}`, "http://localhost:5173"],
+    maxConnections: e.MAX_CONNECTIONS,
+    maxConnectionsPerIp: e.MAX_CONNECTIONS_PER_IP,
   }));
 
 export type ServerConfig = Readonly<z.output<typeof ConfigSchema>>;

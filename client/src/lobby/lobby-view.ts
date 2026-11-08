@@ -15,7 +15,7 @@ export function $<T extends Element>(root: ParentNode, selector: string, type: n
 export function mountLobbyView(
   root: HTMLElement,
   lobby: Lobby,
-  { defaultName = "Maksym" } = {},
+  { defaultName = "Maksym", notice = "" }: { defaultName?: string; notice?: string } = {},
 ): { unmount(): void } {
   root.innerHTML = `
     <div class="panel">
@@ -26,6 +26,8 @@ export function mountLobbyView(
       <form id="create"><input id="newroom" maxlength="32" placeholder="нова кімната" /> <button type="submit">Створити</button></form>
       <p id="status" class="muted"></p>
       <button id="join" type="button" disabled>Join</button>
+      <p class="notice" id="notice" hidden></p>
+      <p class="muted" id="version"></p>
     </div>`;
   root.hidden = false;
   const list = $(root, "#rooms", HTMLUListElement);
@@ -35,6 +37,13 @@ export function mountLobbyView(
   const createForm = $(root, "#create", HTMLFormElement);
   const newRoom = $(root, "#newroom", HTMLInputElement);
   nameInput.value = defaultName;
+  $(root, "#version", HTMLParagraphElement).textContent = `build ${__APP_VERSION__}`;
+  if (notice) {
+    // kept apart from #status, which the polling overwrites every 3 s
+    const n = $(root, "#notice", HTMLParagraphElement);
+    n.textContent = notice;
+    n.hidden = false;
+  }
   let selected: string | null = null;
   const ac = new AbortController();
   const opts = { signal: ac.signal };

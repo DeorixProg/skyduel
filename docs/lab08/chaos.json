@@ -1,0 +1,33 @@
+{
+  "rateLimit": {
+    "closedWith": 4008,
+    "afterMs": 105,
+    "messagesSent": 135
+  },
+  "victimRoom": "victim-199",
+  "clientVanished": {
+    "rosterUpdateMs": 10
+  },
+  "garbageFlood": {
+    "seconds": 10,
+    "framesSent": 1276,
+    "connectionsOpened": 637,
+    "closedWith": {
+      "4002": 637
+    },
+    "rejectedBefore": "skyduel_rejections_total{reason=\"bad_shape\"} 1928; skyduel_rejections_total{reason=\"bad_json\"} 1928; skyduel_rejections_total{reason=\"rate_limit\"} 2",
+    "rejectedAfter": "skyduel_rejections_total{reason=\"bad_shape\"} 2566; skyduel_rejections_total{reason=\"bad_json\"} 2566; skyduel_rejections_total{reason=\"rate_limit\"} 12"
+  },
+  "otherRoomTick": {
+    "before": {
+      "room": "victim-199",
+      "tickMsP50": 0.6770999999862397,
+      "tickMsP99": 1.2730999999912456
+    },
+    "during": {
+      "room": "victim-199",
+      "tickMsP50": 0.5602000000071712,
+      "tickMsP99": 1.2311999999947147
+    }
+  }
+}

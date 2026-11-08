@@ -146,12 +146,12 @@ async function boot(): Promise<void> {
   }
 }
 
-function showLobby(sprites: Sprites): void {
+function showLobby(sprites: Sprites, notice = ""): void {
   let url = FAIL === "rooms" ? "/api/rooms?lag=5000" : "/api/rooms";
   const roomsLag = params.get("roomslag");
   if (roomsLag) url = `/api/rooms?lag=${roomsLag}`;
   const lobby = new Lobby({ url, intervalMs: 3000, timeoutMs: 2000 });
-  const lobbyView = mountLobbyView(lobbyRoot, lobby);
+  const lobbyView = mountLobbyView(lobbyRoot, lobby, { notice });
   lobby.events.on("join", ({ room, arena, name, warning }) => {
     lobbyView.unmount();
     if (warning) console.warn(warning);
@@ -173,8 +173,35 @@ function showLobby(sprites: Sprites): void {
       window.__game?.stop(); // after a reconnect the server gives us a new ship
       window.__game = startNetGame({ view, input, sprites, audio, arena, conn, welcome, params });
     });
+    // Lab 8: if the server goes away mid-match (shutdown message, 1001, or the socket just
+    // dies), do not hang in a frozen arena: stop the match and go back to the lobby, whose
+    // polling shows when the server is back. The player re-joins with one click.
+    let left = false;
+    const backToLobby = (why: string) => {
+      if (left) return;
+      left = true;
+      window.__game?.stop();
+      window.__game = undefined;
+      conn.close();
+      roomView.unmount();
+      showLobby(sprites, why);
+    };
+    conn.on("shutdown", () =>
+      backToLobby(
+        "Сервер перезапускається — повертаємось у лобі. Кімнати з'являться, щойно він повернеться.",
+      ),
+    );
     conn.events.on("close", (ev) => {
-      if (!ev.willRetry && ev.code !== 1000) console.warn("room closed", ev);
+      if (ev.code === 1000) return;
+      if (ev.code === 1001 || ev.code === 1006) {
+        backToLobby(
+          `З'єднання з сервером втрачено (код ${ev.code}). Спробуйте приєднатися ще раз.`,
+        );
+      } else if (!ev.willRetry) {
+        backToLobby(
+          `Сервер закрив з'єднання: код ${ev.code}${ev.reason ? ` (${ev.reason})` : ""}.`,
+        );
+      }
     });
     conn.connect();
     window.__conn = conn;
@@ -196,3 +223,11 @@ retryBtn.addEventListener("click", () => {
 });
 
 void boot();
+
+// PWA: installable on a phone, and the shell starts offline. Only in production builds
+// (a service worker caching the Vite dev server's modules would be confusing).
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .register("/sw.js")
+    .catch((err: unknown) => console.warn("service worker:", err));
+}

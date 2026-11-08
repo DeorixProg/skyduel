@@ -10,8 +10,10 @@ import { z } from "zod";
 import type { ServerConfig } from "./config.ts";
 import { listReplays, replayPath } from "./log/replay.ts";
 import { errFields, type Logger } from "./logger.ts";
+import type { Metrics } from "./metrics.ts";
 import type { RoomManager } from "./rooms.ts";
 import type { Stats } from "./stats.ts";
+import { VERSION } from "./version.ts";
 
 const MIME: Readonly<Record<string, string>> = {
   ".html": "text/html; charset=utf-8",
@@ -76,11 +78,15 @@ export function createHttpHandler({
   rooms,
   logger,
   stats,
+  metrics,
+  isReady,
 }: {
   config: ServerConfig;
   rooms: RoomManager;
   logger: Logger;
   stats: Stats;
+  metrics: Metrics;
+  isReady: () => boolean;
 }) {
   const staticRoot = path.resolve(config.staticDir);
   const CreateRoom = z.object({
@@ -153,9 +159,26 @@ export function createHttpHandler({
     const rawPath = rawUrl.split("?")[0] ?? "/";
     stats.httpRequests++;
     try {
+      if (url.pathname === "/ready") {
+        // readiness: can this process take NEW players? (false while shutting down or full)
+        const ready = isReady();
+        return sendJson(res, ready ? 200 : 503, { ready });
+      }
+      if (url.pathname === "/metrics") {
+        const body = await metrics.registry.metrics();
+        res.writeHead(200, {
+          "content-type": metrics.registry.contentType,
+          "cache-control": "no-store",
+        });
+        res.end(body);
+        return;
+      }
       if (url.pathname === "/health") {
+        // liveness: the process is up and its event loop answers
         return sendJson(res, 200, {
           status: "ok",
+          version: VERSION.sha,
+          tag: VERSION.tag,
           uptime: Math.round(process.uptime()),
           rooms: rooms.size,
           players: stats.players,
@@ -171,6 +194,7 @@ export function createHttpHandler({
         );
         return sendJson(res, 200, {
           ...stats,
+          ...metrics.snapshot(),
           matches,
           memory: process.memoryUsage(),
           elu: elu.utilization,

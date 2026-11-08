@@ -23,6 +23,7 @@ const addr = await app.listen();
 logger.info({ port: addr.port, staticDir: config.staticDir, logDir: config.logDir }, "listening");
 
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  const started = performance.now();
   logger.info({ signal }, "shutting down");
   const force = setTimeout(() => {
     logger.error({}, "shutdown took longer than 10 s, forcing exit");
@@ -30,7 +31,8 @@ async function shutdown(signal: NodeJS.Signals): Promise<void> {
   }, 10_000);
   force.unref();
   await app.close();
-  logger.info({}, "bye");
+  logger.info({ ms: Math.round(performance.now() - started) }, "bye");
+  logger.flush?.();
   process.exit(0);
 }
 process.once("SIGINT", (s) => void shutdown(s));
@@ -40,6 +42,7 @@ process.once("SIGTERM", (s) => void shutdown(s));
 // process in an undefined state; the supervisor (Docker, systemd) restarts it.
 process.on("uncaughtException", (err) => {
   logger.error(errFields(err), "uncaught exception");
+  logger.flush?.();
   process.exit(1);
 });
 process.on("unhandledRejection", (err) => {

@@ -17,6 +17,7 @@ import { loadArena } from "./arenas.ts";
 import type { ServerConfig } from "./config.ts";
 import { errFields, errMessage, type Logger } from "./logger.ts";
 import { Match } from "./match.ts";
+import type { Metrics } from "./metrics.ts";
 import { createLink, type Link, parseNetSim } from "./netsim.ts";
 import { createTokenBucket, type TokenBucket } from "./ratelimit.ts";
 import type { Room, RoomManager } from "./rooms.ts";
@@ -46,13 +47,32 @@ export function attachWebSocket({
   rooms,
   logger,
   stats,
+  metrics,
 }: {
   httpServer: Server;
   config: ServerConfig;
   rooms: RoomManager;
   logger: Logger;
   stats: Stats;
+  metrics: Metrics;
 }) {
+  const reasonOf = new Map<number, string>(
+    Object.entries(CLOSE).map(([name, code]) => [code, name.toLowerCase()]),
+  );
+  const reject = (code: number) => {
+    stats.rejected[code] = (stats.rejected[code] ?? 0) + 1;
+    metrics.reject(reasonOf.get(code) ?? `code_${code}`);
+  };
+  const perIp = new Map<string, number>();
+  const refuse = (
+    socket: { write(s: string): unknown; destroy(): unknown },
+    status: string,
+    reason: string,
+  ) => {
+    metrics.reject(reason);
+    socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\nContent-Length: 0\r\n\r\n`);
+    socket.destroy();
+  };
   const wss = new WebSocketServer({ noServer: true, maxPayload: config.maxPayload });
   const conns = new Map<WebSocket, Conn>();
   let nextPlayerId = 1;
@@ -64,6 +84,24 @@ export function attachWebSocket({
       socket.destroy();
       return;
     }
+    // Origin check: a browser page on another site must not be able to open a socket in the
+    // player's name (cross-site WebSocket hijacking). Non-browser clients send no Origin.
+    const origin = req.headers.origin;
+    if (origin !== undefined && !config.allowedOrigins.includes(origin)) {
+      logger.warn({ origin }, "websocket origin rejected");
+      return refuse(socket, "403 Forbidden", "bad_origin");
+    }
+    const ip = req.socket.remoteAddress ?? "?";
+    if ((perIp.get(ip) ?? 0) >= config.maxConnectionsPerIp)
+      return refuse(socket, "429 Too Many Requests", "per_ip_cap");
+    if (conns.size >= config.maxConnections)
+      return refuse(socket, "503 Service Unavailable", "server_full");
+    perIp.set(ip, (perIp.get(ip) ?? 0) + 1);
+    socket.once("close", () => {
+      const n = (perIp.get(ip) ?? 1) - 1;
+      if (n <= 0) perIp.delete(ip);
+      else perIp.set(ip, n);
+    });
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
   });
 
@@ -162,11 +200,11 @@ export function attachWebSocket({
       link: createLink(parseNetSim(req.url ?? "/")),
     };
     conns.set(ws, conn);
-    const log = logger.child({ conn: conn.id, ip: req.socket.remoteAddress });
+    let log = logger.child({ playerId: conn.id, ip: req.socket.remoteAddress });
     log.info({}, "connected");
 
     const close = (code: CloseCode, reason: string) => {
-      stats.rejected[code] = (stats.rejected[code] ?? 0) + 1;
+      reject(code);
       log.warn({ code, reason }, "closing connection");
       ws.close(code, reason.slice(0, 120));
     };
@@ -243,6 +281,7 @@ export function attachWebSocket({
           }
           clearTimeout(joinTimer);
           conn.room = room;
+          log = log.child({ roomId: room.id }); // every later line of this player names the room
           conn.codec = msg.codec;
           const ship = room.match.addPlayer(conn.id, msg.name);
           send(
@@ -262,10 +301,7 @@ export function attachWebSocket({
           );
           room.join({ id: conn.id, name: msg.name, ws, shipId: ship.id, color: ship.color });
           stats.players++;
-          log.info(
-            { room: room.id, player: conn.id, codec: conn.codec, ...conn.link.settings },
-            "joined",
-          );
+          log.info({ roomId: room.id, codec: conn.codec, ...conn.link.settings }, "joined");
           return;
         }
         case "chat":
@@ -289,6 +325,8 @@ export function attachWebSocket({
 
     ws.on("close", (code: number) => {
       clearTimeout(joinTimer);
+      stats.disconnections++;
+      if (code === CLOSE.TOO_BIG) reject(code); // closed by ws itself (maxPayload)
       if (conn.room) {
         stats.players--;
         conn.room.match?.removePlayer(conn.id);
@@ -304,7 +342,7 @@ export function attachWebSocket({
   const heartbeat = setInterval(() => {
     for (const [ws, conn] of conns) {
       if (conn.missedPongs >= 2) {
-        stats.rejected[CLOSE.HEARTBEAT] = (stats.rejected[CLOSE.HEARTBEAT] ?? 0) + 1;
+        reject(CLOSE.HEARTBEAT);
         ws.terminate();
         continue;
       }

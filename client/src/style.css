@@ -140,3 +140,15 @@ body {
   max-height: 40vh;
   overflow-y: auto;
 }
+
+.notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #fdebd0;
+  color: #873600;
+  font-size: 13px;
+}
+.notice[hidden] {
+  display: none;
+}

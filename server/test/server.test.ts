@@ -295,3 +295,105 @@ describe("bots", () => {
     await app.close();
   });
 });
+
+describe("production endpoints and limits (Lab 8)", () => {
+  let app: App;
+  let port = 0;
+  before(async () => {
+    const config = loadConfig({
+      LOG_DIR: mkdtempSync(path.join(os.tmpdir(), "skyduel-l8-")),
+      ALLOWED_ORIGINS: "https://skyduel.example",
+      MAX_CONNECTIONS_PER_IP: "2",
+    });
+    app = createApp({ config, logger: createLogger({ level: "silent" }) });
+    port = (await app.listen(0, "127.0.0.1")).port;
+  });
+  after(() => app.close());
+
+  test("/health has the version, /ready is 200, /metrics speaks Prometheus", async () => {
+    const h: unknown = await (await fetch(`http://127.0.0.1:${port}/health`)).json();
+    assert.ok(h && typeof h === "object" && "version" in h && typeof h.version === "string");
+    assert.equal((await fetch(`http://127.0.0.1:${port}/ready`)).status, 200);
+    const m = await (await fetch(`http://127.0.0.1:${port}/metrics`)).text();
+    for (const name of [
+      "skyduel_players",
+      "skyduel_rooms",
+      "skyduel_tick_ms_p99",
+      "skyduel_event_loop_utilization",
+      "skyduel_bytes_out_per_second",
+      "skyduel_process_resident_memory_bytes",
+    ]) {
+      assert.match(m, new RegExp(`^${name} `, "m"), name);
+    }
+  });
+
+  test("a socket from a foreign Origin is refused (403) and counted", async () => {
+    const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { origin: "https://evil.example" });
+    const [err] = await once(ws, "error");
+    assert.match(String(err), /403/);
+    const good = await TestClient.connect(`ws://127.0.0.1:${port}/ws`, {
+      origin: "https://skyduel.example",
+    });
+    good.ws.close();
+    const m = await (await fetch(`http://127.0.0.1:${port}/metrics`)).text();
+    assert.match(m, /skyduel_rejections_total\{reason="bad_origin"\} 1/);
+  });
+
+  test("more than MAX_CONNECTIONS_PER_IP sockets from one IP → 429", async () => {
+    const a = await TestClient.connect(`ws://127.0.0.1:${port}/ws`);
+    const b = await TestClient.connect(`ws://127.0.0.1:${port}/ws`);
+    const c = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+    const [err] = await once(c, "error");
+    assert.match(String(err), /429/);
+    a.ws.close();
+    b.ws.close();
+  });
+
+  test("/ready turns 503 as soon as shutdown starts", async () => {
+    const closing = app.close();
+    assert.equal(
+      (await fetch(`http://127.0.0.1:${port}/ready`).catch(() => ({ status: 503 }))).status,
+      503,
+    );
+    await closing;
+  });
+});
+
+describe.skipIf(process.platform === "win32")(
+  "SIGTERM (Linux/CI: Windows cannot deliver signals)",
+  () => {
+    test("the real process closes sockets with 1001 and exits 0 in < 10 s", async () => {
+      const { spawn } = await import("node:child_process");
+      const child = spawn(process.execPath, ["src/index.ts"], {
+        cwd: path.resolve(import.meta.dirname, ".."),
+        env: {
+          ...process.env,
+          PORT: "8097",
+          LOG_LEVEL: "warn",
+          LOG_DIR: mkdtempSync(path.join(os.tmpdir(), "skyduel-sig-")),
+        },
+        stdio: "ignore",
+      });
+      for (let i = 0; i < 50; i++) {
+        if (
+          await fetch("http://127.0.0.1:8097/health")
+            .then((r) => r.ok)
+            .catch(() => false)
+        )
+          break;
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      const c = await TestClient.connect("ws://127.0.0.1:8097/ws");
+      c.send({ type: "join", room: "somme", name: "Last" });
+      await c.waitFor("welcome");
+      const t0 = Date.now();
+      const closed = c.closed();
+      child.kill("SIGTERM");
+      const [code] = await once(child, "exit");
+      assert.equal(code, 0);
+      assert.equal(await closed, CLOSE.GOING_AWAY);
+      assert.ok(c.inbox.some((m) => m.type === "shutdown"));
+      assert.ok(Date.now() - t0 < 10_000);
+    });
+  },
+);
