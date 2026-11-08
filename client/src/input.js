@@ -11,7 +11,10 @@ export function createInput(target = window) {
   const down = new Set();
   const pressed = new Set();
 
+  const typing = (e) =>
+    e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement;
   const onDown = (e) => {
+    if (typing(e)) return; // typing in the chat must not fly the plane
     if (!e.repeat) pressed.add(e.code);
     down.add(e.code);
     if (e.code.startsWith("Arrow") || e.code === "Space") e.preventDefault();

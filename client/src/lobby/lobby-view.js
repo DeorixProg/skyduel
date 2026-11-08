@@ -9,8 +9,9 @@ export function mountLobbyView(root, lobby, { defaultName = "Maksym" } = {}) {
       <label>Ім'я пілота <input id="pilot" maxlength="16" value="${defaultName}" /></label>
       <h2>Кімнати</h2>
       <ul id="rooms"><li class="muted">завантаження…</li></ul>
+      <form id="create"><input id="newroom" maxlength="32" placeholder="нова кімната" /> <button type="submit">Створити</button></form>
       <p id="status" class="muted"></p>
-      <button id="join" disabled>Join</button>
+      <button id="join" type="button" disabled>Join</button>
     </div>`;
   root.hidden = false;
   const list = root.querySelector("#rooms");
@@ -51,6 +52,26 @@ export function mountLobbyView(root, lobby, { defaultName = "Maksym" } = {}) {
     joinBtn.disabled = true;
     status.textContent = `приєднуємось до «${e.detail.room.name}»…`;
   });
+
+  root.querySelector("#create").addEventListener(
+    "submit",
+    async (e) => {
+      e.preventDefault();
+      const input = root.querySelector("#newroom");
+      if (!input.value.trim()) return;
+      try {
+        const room = await lobby.createRoom(input.value.trim());
+        selected = room.id;
+        joinBtn.disabled = false;
+        render(lobby.rooms);
+        input.value = "";
+      } catch (err) {
+        status.textContent = `не вдалося створити кімнату: ${err.message}`;
+        status.className = "error";
+      }
+    },
+    { signal: ac.signal },
+  );
 
   joinBtn.addEventListener("click", () => lobby.join(selected, nameInput.value.trim()), {
     signal: ac.signal,

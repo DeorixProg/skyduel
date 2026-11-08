@@ -4,6 +4,8 @@ import { startGame } from "./game.js";
 import { createInput } from "./input.js";
 import { Lobby } from "./lobby/lobby.js";
 import { mountLobbyView } from "./lobby/lobby-view.js";
+import { mountRoomView } from "./lobby/room-view.js";
+import { Connection, wsUrl } from "./net/connection.js";
 import { setupCanvas } from "./render/canvas.js";
 import { drawLoading } from "./render/loading.js";
 import { createSprites } from "./render/sprites.js";
@@ -31,6 +33,7 @@ const input = createInput(window);
 const audio = createAudio();
 const retryBtn = document.getElementById("retry");
 const lobbyRoot = document.getElementById("lobby");
+const roomRoot = document.getElementById("room");
 
 // Autoplay policy: the AudioContext may only start inside a user gesture.
 for (const type of ["pointerdown", "keydown"]) {
@@ -132,16 +135,25 @@ async function boot() {
 }
 
 function showLobby(sprites) {
-  let url = FAIL === "rooms" ? "/api/rooms.json?lag=5000" : "/api/rooms.json";
-  if (params.has("roomslag")) url = `/api/rooms.json?lag=${params.get("roomslag")}`;
+  let url = FAIL === "rooms" ? "/api/rooms?lag=5000" : "/api/rooms";
+  if (params.has("roomslag")) url = `/api/rooms?lag=${params.get("roomslag")}`;
   const lobby = new Lobby({ url, intervalMs: 3000, timeoutMs: 2000 });
   const lobbyView = mountLobbyView(lobbyRoot, lobby);
   lobby.addEventListener("join", (e) => {
     lobbyView.unmount();
-    const { arena, name, warning } = e.detail;
+    const { room, arena, name, warning } = e.detail;
     if (warning) console.warn(warning);
+    // Lab 4: the room lives on the server (roster + chat); the match is still local until Lab 5.
+    const conn = new Connection(wsUrl("/ws"));
+    conn.addEventListener("open", () => conn.send({ type: "join", room: room.id, name }));
+    const roomView = mountRoomView(roomRoot, conn, { room, selfName: name });
+    conn.addEventListener("close", (ev) => {
+      if (!ev.detail.willRetry && ev.detail.code !== 1000) console.warn("room closed", ev.detail);
+    });
+    conn.connect();
     window.__game = startGame({ view, input, sprites, audio, arena, name, params });
-    window.__lobby = lobby;
+    window.__conn = conn;
+    window.__roomView = roomView;
   });
   lobby.show();
   window.__lobby = lobby;

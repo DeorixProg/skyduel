@@ -1,19 +1,25 @@
 {
   "name": "skyduel",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.4.0",
   "type": "module",
   "description": "SkyDuel — real-time multiplayer biplane dogfight in the browser",
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
+    "dev": "node tools/dev.mjs",
+    "dev:client": "npm run dev -w client",
+    "dev:server": "npm run dev -w server",
+    "build": "npm run build -w client",
+    "start": "npm start -w server",
+    "test": "npm test -w server",
     "lint": "biome check .",
     "format": "biome format --write ."
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.6",
-    "playwright-core": "^1.65.0",
-    "vite": "^8.3.6"
+    "playwright-core": "^1.65.0"
   }
 }

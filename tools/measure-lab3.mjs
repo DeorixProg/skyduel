@@ -74,7 +74,7 @@ await run("badjson", "?fail=badjson", async (p) => {
 await run("rooms", "?fail=rooms", async (p) => {
   await p.waitForSelector("#lobby .error", { timeout: 10000 });
   await p.screenshot({ path: `${OUT}/fail-rooms.png` });
-  return { status: await p.locator("#status").innerText() };
+  return { status: await p.locator("#status").textContent() };
 });
 
 // 2. Sequential vs concurrent, 150 ms simulated latency per response, 5 runs each

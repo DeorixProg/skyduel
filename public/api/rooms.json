@@ -1,7 +1,0 @@
-{
-  "rooms": [
-    { "id": "somme", "name": "Над Соммою", "players": 1, "maxPlayers": 4, "arena": "/assets/arenas/somme.json" },
-    { "id": "verdun", "name": "Захід над Верденом", "players": 3, "maxPlayers": 4, "arena": "/assets/arenas/verdun.json" },
-    { "id": "night", "name": "Нічний патруль", "players": 0, "maxPlayers": 6, "arena": "/assets/arenas/night.json" }
-  ]
-}

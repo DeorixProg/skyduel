@@ -74,6 +74,20 @@ export class Lobby extends EventTarget {
     }
   }
 
+  /** POST /api/rooms; the new room appears in the next refresh. */
+  async createRoom(name) {
+    const res = await fetch("/api/rooms", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name }),
+      signal: AbortSignal.any([this.#ac.signal, AbortSignal.timeout(this.timeoutMs)]),
+    });
+    const body = await res.json();
+    if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+    await this.refresh();
+    return body;
+  }
+
   /** Fetch the room's arena config, then leave the lobby and announce the join. */
   async join(roomId, playerName) {
     const room = this.rooms.find((r) => r.id === roomId);

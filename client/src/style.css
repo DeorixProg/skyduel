@@ -86,3 +86,52 @@ body {
   bottom: 18%;
   transform: translateX(-50%);
 }
+
+#room {
+  position: fixed;
+  top: 200px;
+  right: 8px;
+  width: 260px;
+}
+#room[hidden] {
+  display: none;
+}
+.side {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(11, 29, 46, 0.78);
+  color: #ecf0f1;
+  font-size: 13px;
+}
+.side h3 {
+  margin: 8px 0 4px;
+  font-size: 13px;
+  color: #aab7c4;
+}
+.side ul {
+  margin: 0;
+  padding-left: 18px;
+}
+#chatlog {
+  height: 160px;
+  overflow-y: auto;
+}
+#chatlog p {
+  margin: 2px 0;
+  word-break: break-word;
+}
+#chatlog .sys {
+  color: #f5b041;
+}
+#chatin {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 6px;
+  padding: 4px 6px;
+}
+.ok {
+  color: #2ecc71;
+}
+#create {
+  margin-top: 8px;
+}
