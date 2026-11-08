@@ -32,8 +32,8 @@ export function loadConfig(env = process.env) {
     maxRooms: int("MAX_ROOMS", 50, 1, 10_000),
     maxPlayersPerRoom: int("MAX_PLAYERS_PER_ROOM", 8, 1, 64),
     maxPayload: int("MAX_PAYLOAD", 4096, 64, 1 << 20),
-    msgRate: int("MSG_RATE", 30, 1, 1000), // tokens per second
-    msgBurst: int("MSG_BURST", 60, 1, 10_000),
+    msgRate: int("MSG_RATE", 60, 1, 1000), // tokens per second (30 inputs/s + control)
+    msgBurst: int("MSG_BURST", 120, 1, 10_000),
     joinTimeoutMs: int("JOIN_TIMEOUT_MS", 5000, 100, 60_000),
     heartbeatMs: int("HEARTBEAT_MS", 15_000, 100, 300_000),
     slowClientBytes: int("SLOW_CLIENT_BYTES", 256 * 1024, 1024, 64 * 1024 * 1024),

@@ -1,14 +1,18 @@
 /**
- * Protocol v0 — JSON over WebSocket.
+ * Protocol v1 — control messages are JSON text frames; game messages
+ * (inputs up, snapshots down) are binary frames (codec/binary.js) or, with
+ * the JSON codec selected at join, JSON text frames of the same shape.
  *
  * Client → server
- *   { type: "join", room: string(1..32), name: string(1..16) }
+ *   { type: "join", room: string(1..32), name: string(1..16), codec?: "binary" | "json" }
+ *   { type: "input", inputs: [{ seq, thrust, turn, fire }] }      (JSON codec only)
  *   { type: "chat", text: string(1..200) }
  *   { type: "leave" }
  *   { type: "ping", t: number }
  *
  * Server → client
- *   { type: "welcome", v, playerId, room }
+ *   { type: "welcome", v, playerId, shipId, seed, tickRate, codec, room }
+ *   { type: "snapshot", tick, ack, entities }                      (JSON codec only)
  *   { type: "roster",  players: [{ id, name }] }
  *   { type: "chat",    from, name, text, t }
  *   { type: "pong",    t }
@@ -18,7 +22,7 @@
  * Every incoming frame is validated. Anything unexpected closes the socket
  * with an application close code (4000–4999) and is logged.
  */
-export const PROTOCOL_VERSION = 0;
+export const PROTOCOL_VERSION = 1;
 
 export const CLOSE = Object.freeze({
   GOING_AWAY: 1001, // server shutdown
@@ -44,9 +48,22 @@ const SHAPES = {
       ? "room must be 1..32 chars of [A-Za-z0-9_-]"
       : !isStr(m.name?.trim?.(), 1, 16)
         ? "name must be 1..16 chars"
-        : null,
+        : m.codec !== undefined && m.codec !== "binary" && m.codec !== "json"
+          ? 'codec must be "binary" or "json"'
+          : null,
   chat: (m) => (!isStr(m.text?.trim?.(), 1, 200) ? "text must be 1..200 chars" : null),
   leave: () => null,
+  input: (m) => {
+    if (!Array.isArray(m.inputs) || m.inputs.length < 1 || m.inputs.length > 8)
+      return "inputs: 1..8 items";
+    for (const i of m.inputs) {
+      if (!Number.isInteger(i?.seq) || i.seq < 0 || i.seq > 0xffffffff) return "seq: uint32";
+      if (typeof i.thrust !== "boolean" || typeof i.fire !== "boolean")
+        return "thrust/fire: boolean";
+      if (typeof i.turn !== "number" || !(i.turn >= -1 && i.turn <= 1)) return "turn: -1..1";
+    }
+    return null;
+  },
   ping: (m) =>
     typeof m.t !== "number" || !Number.isFinite(m.t) ? "t must be a finite number" : null,
 };
@@ -55,12 +72,10 @@ const SHAPES = {
  * Parse and validate one raw frame. Never throws.
  * @returns {{ ok: true, msg: object } | { ok: false, code: number, reason: string }}
  */
-export function parseMessage(raw, isBinary = false) {
-  if (isBinary)
-    return { ok: false, code: CLOSE.BAD_SHAPE, reason: "binary frames not accepted in v0" };
+export function parseMessage(raw) {
   let msg;
   try {
-    msg = JSON.parse(raw.toString());
+    msg = JSON.parse(typeof raw === "string" ? raw : new TextDecoder().decode(raw));
   } catch {
     return { ok: false, code: CLOSE.BAD_JSON, reason: "invalid JSON" };
   }

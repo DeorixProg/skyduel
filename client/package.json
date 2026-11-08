@@ -1,7 +1,7 @@
 {
   "name": "@skyduel/client",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,5 +10,8 @@
   },
   "devDependencies": {
     "vite": "^8.3.6"
+  },
+  "dependencies": {
+    "@skyduel/shared": "*"
   }
 }

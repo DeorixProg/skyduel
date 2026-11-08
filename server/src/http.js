@@ -113,8 +113,12 @@ export function createHttpHandler({ config, rooms, logger, stats }) {
       }
       if (url.pathname === "/api/stats") {
         const elu = performance.eventLoopUtilization();
+        const matches = [...rooms]
+          .filter((r) => r.match?.players.size)
+          .map((r) => ({ room: r.id, ...r.match.stats() }));
         return sendJson(res, 200, {
           ...stats,
+          matches,
           memory: process.memoryUsage(),
           elu: elu.utilization,
         });

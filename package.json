@@ -1,10 +1,11 @@
 {
   "name": "skyduel",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "description": "SkyDuel — real-time multiplayer biplane dogfight in the browser",
   "workspaces": [
+    "shared",
     "client",
     "server"
   ],
@@ -14,7 +15,7 @@
     "dev:server": "npm run dev -w server",
     "build": "npm run build -w client",
     "start": "npm start -w server",
-    "test": "npm test -w server",
+    "test": "npm test -w shared -w server",
     "lint": "biome check .",
     "format": "biome format --write ."
   },

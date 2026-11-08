@@ -1,0 +1,10 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>determinism check</title>
+<pre id="out">running…</pre>
+<script type="module">
+  import { scriptedRunHash } from "@skyduel/shared/determinism.js";
+
+  window.__det = scriptedRunHash();
+  document.getElementById("out").textContent = JSON.stringify(window.__det);
+</script>

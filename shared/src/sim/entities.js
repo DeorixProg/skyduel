@@ -1,4 +1,5 @@
 import { ARENA, wrap } from "./arena.js";
+import { dcos, dsin } from "./dmath.js";
 import { Entity } from "./entity.js";
 import { integrate, SHIP } from "./ship.js";
 import { Vector2 } from "./vector.js";
@@ -23,6 +24,7 @@ export class Ship extends Entity {
     this.respawnIn = 0;
     this.controls = IDLE;
     this.controller = null; // optional (ship, world) => controls, used by the training drone
+    this.inputSeq = 0; // seq of the input applied in the current step
     this.effects = new Map(); // effect name -> seconds left (shield, rapid, homing)
   }
 
@@ -68,6 +70,7 @@ export class Ship extends Entity {
       pos: nose,
       vel: this.vel.add(Vector2.fromAngle(this.angle, BULLET.SPEED)),
       ownerId: this.id,
+      seq: this.inputSeq ?? 0, // which input fired it: lets the client match its predicted bullet
     });
     if (this.effects.has("homing")) {
       bullet.homing = { targetKind: "ship", turnRate: 4, range: 380, speed: BULLET.SPEED };
@@ -119,9 +122,10 @@ export class Ship extends Entity {
 }
 
 export class Bullet extends Entity {
-  constructor({ pos, vel, ownerId }) {
+  constructor({ pos, vel, ownerId, seq = 0 }) {
     super({ pos, vel, angle: vel.angle(), radius: BULLET.RADIUS, kind: "bullet" });
     this.ownerId = ownerId;
+    this.seq = seq;
     this.ttl = BULLET.TTL;
   }
 
@@ -209,7 +213,7 @@ export class Explosion extends Entity {
     this.particles = Array.from({ length: Math.round(28 * size) }, () => {
       const a = rng.range(-Math.PI, Math.PI);
       const s = rng.range(40, 220) * size;
-      return { x: pos.x, y: pos.y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, r: rng.range(2, 5) };
+      return { x: pos.x, y: pos.y, vx: dcos(a) * s, vy: dsin(a) * s, r: rng.range(2, 5) };
     });
   }
 

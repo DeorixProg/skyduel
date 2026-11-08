@@ -1,4 +1,5 @@
 import { ARENA, wrapPosition } from "./arena.js";
+import { dcos, dhypot, dsin } from "./dmath.js";
 
 /**
  * Biplane flight model. Everything here is plain data + pure functions:
@@ -23,15 +24,22 @@ export function createShip(x = ARENA.width / 2, y = ARENA.height / 2, angle = -M
   return { x, y, vx: 0, vy: 0, angle, thrust: false };
 }
 
+/**
+ * Debug switch for the Lab 5 experiment "break determinism on purpose".
+ * Never enable outside that experiment.
+ */
+export const SIM_FLAGS = { chaos: false };
+
 /** Pure: returns a NEW ship, never mutates the argument. */
 export function integrate(ship, input, dt) {
+  const chaos = SIM_FLAGS.chaos ? 1 + (Math.random() - 0.5) * 0.2 : 1; // ±10 % thrust noise
   const angle = ship.angle + input.turn * SHIP.TURN_RATE * dt;
   let vx = ship.vx;
   let vy = ship.vy;
 
   if (input.thrust) {
-    vx += Math.cos(angle) * SHIP.THRUST * dt;
-    vy += Math.sin(angle) * SHIP.THRUST * dt;
+    vx += dcos(angle) * SHIP.THRUST * chaos * dt;
+    vy += dsin(angle) * SHIP.THRUST * chaos * dt;
   }
 
   // linear drag (explicit Euler — intentionally dt-dependent, see experiment 3)
@@ -39,7 +47,7 @@ export function integrate(ship, input, dt) {
   vx *= k;
   vy *= k;
 
-  const speed = Math.hypot(vx, vy);
+  const speed = dhypot(vx, vy);
   if (speed > SHIP.MAX_SPEED) {
     vx = (vx / speed) * SHIP.MAX_SPEED;
     vy = (vy / speed) * SHIP.MAX_SPEED;

@@ -1,0 +1,13 @@
+{
+  "name": "@skyduel/shared",
+  "private": true,
+  "version": "0.5.0",
+  "type": "module",
+  "description": "Simulation, protocol and codecs shared by the client and the server (no DOM, no Node built-ins)",
+  "exports": {
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "test": "node --test test/"
+  }
+}

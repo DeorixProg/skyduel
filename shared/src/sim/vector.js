@@ -1,3 +1,4 @@
+import { datan2, dcos, dhypot, dsin } from "./dmath.js";
 /**
  * 2D vector with PURE methods: `a.add(b)` returns a new vector and never
  * mutates `a` or `b`. Pure methods make aliasing bugs impossible
@@ -11,7 +12,7 @@ export class Vector2 {
   }
 
   static fromAngle(angle, length = 1) {
-    return new Vector2(Math.cos(angle) * length, Math.sin(angle) * length);
+    return new Vector2(dcos(angle) * length, dsin(angle) * length);
   }
 
   add(v) {
@@ -31,7 +32,7 @@ export class Vector2 {
   }
 
   length() {
-    return Math.hypot(this.x, this.y);
+    return dhypot(this.x, this.y);
   }
 
   normalize() {
@@ -40,13 +41,13 @@ export class Vector2 {
   }
 
   rotate(angle) {
-    const c = Math.cos(angle);
-    const s = Math.sin(angle);
+    const c = dcos(angle);
+    const s = dsin(angle);
     return new Vector2(this.x * c - this.y * s, this.x * s + this.y * c);
   }
 
   angle() {
-    return Math.atan2(this.y, this.x);
+    return datan2(this.y, this.x);
   }
 
   clone() {

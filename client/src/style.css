@@ -89,9 +89,9 @@ body {
 
 #room {
   position: fixed;
-  top: 200px;
   right: 8px;
-  width: 260px;
+  bottom: 8px;
+  width: 250px;
 }
 #room[hidden] {
   display: none;
@@ -113,7 +113,7 @@ body {
   padding-left: 18px;
 }
 #chatlog {
-  height: 160px;
+  height: 96px;
   overflow-y: auto;
 }
 #chatlog p {

@@ -1,3 +1,8 @@
+import { ARENA, wrapDelta } from "@skyduel/shared/sim/arena.js";
+import { Ship } from "@skyduel/shared/sim/entities.js";
+import { lerpAngle } from "@skyduel/shared/sim/ship.js";
+import { Vector2 } from "@skyduel/shared/sim/vector.js";
+import { World } from "@skyduel/shared/sim/world.js";
 import { AUTOPILOT, createRecorder, EXP, loopMode, maybeBlock } from "./experiments.js";
 import { createHud } from "./hud.js";
 import { readControls } from "./input.js";
@@ -5,11 +10,6 @@ import { createLoop } from "./loop.js";
 import { cameraFor } from "./render/canvas.js";
 import { drawBackground, drawExplosion, drawHud, drawScoreboard } from "./render/draw.js";
 import { SHIP_COLORS } from "./render/sprites.js";
-import { ARENA, wrapDelta } from "./sim/arena.js";
-import { Ship } from "./sim/entities.js";
-import { lerpAngle } from "./sim/ship.js";
-import { Vector2 } from "./sim/vector.js";
-import { World } from "./sim/world.js";
 
 /**
  * A local match on the given arena. Everything the game needs is passed in

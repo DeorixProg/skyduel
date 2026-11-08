@@ -1,5 +1,6 @@
 import { ARENA, wrapDelta } from "./arena.js";
 import { naivePairs, resolveCollisions } from "./collision.js";
+import { dhypot } from "./dmath.js";
 import { Balloon, IDLE, Pickup } from "./entities.js";
 import { homingSystem } from "./homing.js";
 import { createRng } from "./rng.js";
@@ -30,7 +31,10 @@ export class World {
     this.pickupTimer = 6;
   }
 
+  #nextId = 1;
+
   spawn(entity) {
+    entity.assignId(this.#nextId++);
     entity.world = this;
     if (this.#stepping) this.#pending.push(entity);
     else this.#entities.set(entity.id, entity);
@@ -72,7 +76,10 @@ export class World {
       if (!e.alive) continue;
       e.prevPos = e.pos; // vectors are immutable, so keeping the reference is safe
       e.prevAngle = e.angle;
-      if (e.kind === "ship") e.controls = inputs.get(e.id) ?? e.controller?.(e, this) ?? IDLE;
+      if (e.kind === "ship") {
+        e.controls = inputs.get(e.id) ?? e.controller?.(e, this) ?? IDLE;
+        e.inputSeq = e.controls.seq ?? 0;
+      }
       e.update(dt);
     }
     homingSystem(this, dt);
@@ -109,7 +116,7 @@ export class World {
         if (e.kind !== "ship" && e.kind !== "balloon") continue;
         const dx = wrapDelta(p.x, e.pos.x, ARENA.width);
         const dy = wrapDelta(p.y, e.pos.y, ARENA.height);
-        if (Math.hypot(dx, dy) < clearance + e.radius) {
+        if (dhypot(dx, dy) < clearance + e.radius) {
           ok = false;
           break;
         }

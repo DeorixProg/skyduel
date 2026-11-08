@@ -1,6 +1,12 @@
+import * as binary from "@skyduel/shared/codec/binary.js";
+import * as json from "@skyduel/shared/codec/json.js";
+import { TICK_RATE } from "@skyduel/shared/net/predict.js";
+import { CLOSE, PROTOCOL_VERSION, parseMessage } from "@skyduel/shared/protocol.js";
 import { WebSocketServer } from "ws";
+import { loadArena } from "./arenas.js";
 import { errFields } from "./logger.js";
-import { CLOSE, PROTOCOL_VERSION, parseMessage } from "./protocol.js";
+import { Match } from "./match.js";
+import { createLink, parseNetSim } from "./netsim.js";
 import { createTokenBucket } from "./ratelimit.js";
 
 /**
@@ -22,8 +28,17 @@ export function attachWebSocket({ httpServer, config, rooms, logger, stats }) {
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
   });
 
-  /** Send with the slow-client policy. Critical messages are never dropped. */
-  function send(ws, msg, { critical = false } = {}) {
+  /** Send a JSON control message (through the latency injector). */
+  function send(ws, msg, opts = {}) {
+    sendFrame(ws, JSON.stringify(msg), opts);
+  }
+
+  /**
+   * Send one frame (string → text, ArrayBuffer → binary) with the slow-client
+   * policy. Critical messages are never dropped; droppable ones may be lost
+   * by the latency injector.
+   */
+  function sendFrame(ws, data, { critical = false, droppable = false } = {}) {
     if (ws.readyState !== ws.OPEN) return;
     if (ws.bufferedAmount > config.slowClientBytes) {
       if (ws.bufferedAmount > config.slowClientBytes * 4) {
@@ -36,14 +51,43 @@ export function attachWebSocket({ httpServer, config, rooms, logger, stats }) {
         return;
       }
     }
-    const text = JSON.stringify(msg);
-    stats.bytesOut += text.length;
-    stats.messagesOut++;
-    ws.send(text);
+    const size = typeof data === "string" ? Buffer.byteLength(data) : data.byteLength;
+    ws.state.link.deliver(
+      () => {
+        if (ws.readyState !== ws.OPEN) return;
+        stats.bytesOut += size;
+        stats.messagesOut++;
+        ws.state.bytesOut += size;
+        ws.send(data);
+      },
+      { droppable },
+    );
   }
 
-  /** Wire a room's events to its sockets (called once per room). */
+  /** Wire a room's events to its sockets and give it a Match (called once per room). */
   function wireRoom(room) {
+    const arena = loadArena(room.arena, config.staticDir);
+    room.match = new Match({
+      arena,
+      seed: (Math.random() * 0x100000000) >>> 0, // the server picks the seed; the sim never calls Math.random
+      onSnapshot(snap, players) {
+        let jsonText = null;
+        for (const [playerId, p] of players) {
+          const ws = room.players.get(playerId)?.ws;
+          if (!ws) continue;
+          let frame;
+          if (ws.state.codec === "json") {
+            // ack differs per client; the rest of the text is shared
+            jsonText ??= json.encodeSnapshot(snap, 0);
+            frame = jsonText.replace('"ack":0', `"ack":${p.ack}`);
+          } else {
+            frame = binary.encodeSnapshot(snap, p.ack);
+          }
+          sendFrame(ws, frame, { droppable: true });
+        }
+      },
+    });
+    room.on("close", () => room.match.stop());
     const broadcast = (msg, opts) => {
       for (const p of room.players.values()) send(p.ws, msg, opts);
     };
@@ -65,8 +109,11 @@ export function attachWebSocket({ httpServer, config, rooms, logger, stats }) {
     const state = {
       id: nextPlayerId++,
       room: null,
+      codec: "binary",
+      bytesOut: 0,
       missedPongs: 0,
       bucket: createTokenBucket({ rate: config.msgRate, burst: config.msgBurst }),
+      link: createLink(parseNetSim(req.url)),
     };
     ws.state = state;
     const log = logger.child({ conn: state.id, ip });
@@ -93,9 +140,35 @@ export function attachWebSocket({ httpServer, config, rooms, logger, stats }) {
       stats.messagesIn++;
       stats.bytesIn += data.length;
       if (!state.bucket.take()) return close(CLOSE.RATE_LIMIT, "rate limit exceeded");
-      const parsed = parseMessage(data, isBinary);
+      if (isBinary) {
+        if (!state.room) return close(CLOSE.BAD_SHAPE, "input before join");
+        let decoded;
+        try {
+          decoded = binary.decodeInputs(data);
+        } catch (err) {
+          return close(CLOSE.BAD_SHAPE, `bad binary frame: ${err.message}`);
+        }
+        state.link.deliver(() => state.room?.match.onInputs(state.id, decoded.inputs), {
+          droppable: true,
+        });
+        return;
+      }
+      const parsed = parseMessage(data);
       if (!parsed.ok) return close(parsed.code, parsed.reason);
       const msg = parsed.msg;
+      if (msg.type === "input") {
+        if (!state.room) return close(CLOSE.BAD_SHAPE, "input before join");
+        state.link.deliver(() => state.room?.match.onInputs(state.id, msg.inputs), {
+          droppable: true,
+        });
+        return;
+      }
+      // control messages also pass through the injected latency, so RTT is honest
+      state.link.deliver(() => handleControl(msg));
+    });
+
+    function handleControl(msg) {
+      if (ws.readyState !== ws.OPEN) return;
       switch (msg.type) {
         case "join": {
           if (state.room) return close(CLOSE.ALREADY_JOINED, "already in a room");
@@ -104,14 +177,30 @@ export function attachWebSocket({ httpServer, config, rooms, logger, stats }) {
           if (room.full) return close(CLOSE.ROOM_FULL, "room is full");
           clearTimeout(joinTimer);
           state.room = room;
+          state.codec = msg.codec ?? "binary";
+          const name = msg.name.trim();
+          const ship = room.match.addPlayer(state.id, name);
           send(
             ws,
-            { type: "welcome", v: PROTOCOL_VERSION, playerId: state.id, room: room.toJSON() },
+            {
+              type: "welcome",
+              v: PROTOCOL_VERSION,
+              playerId: state.id,
+              shipId: ship.id,
+              seed: room.match.seed,
+              tickRate: TICK_RATE,
+              codec: state.codec,
+              netsim: state.link.settings,
+              room: room.toJSON(),
+            },
             { critical: true },
           );
-          room.join({ id: state.id, name: msg.name.trim(), ws });
+          room.join({ id: state.id, name, ws, shipId: ship.id, color: ship.color });
           stats.players++;
-          log.info({ room: room.id, player: state.id }, "joined");
+          log.info(
+            { room: room.id, player: state.id, codec: state.codec, ...state.link.settings },
+            "joined",
+          );
           return;
         }
         case "chat":
@@ -125,12 +214,13 @@ export function attachWebSocket({ httpServer, config, rooms, logger, stats }) {
           send(ws, { type: "pong", t: msg.t }, { critical: true });
           return;
       }
-    });
+    }
 
     ws.on("close", (code) => {
       clearTimeout(joinTimer);
       if (state.room) {
         stats.players--;
+        state.room.match.removePlayer(state.id);
         state.room.leave(state.id, code === 1000 || code === 1001 ? "left" : `closed ${code}`);
         state.room = null;
       }

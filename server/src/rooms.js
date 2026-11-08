@@ -53,7 +53,12 @@ export class Room extends EventEmitter {
   }
 
   roster() {
-    return [...this.players.values()].map((p) => ({ id: p.id, name: p.name }));
+    return [...this.players.values()].map((p) => ({
+      id: p.id,
+      name: p.name,
+      shipId: p.shipId,
+      color: p.color,
+    }));
   }
 
   toJSON() {
@@ -124,6 +129,10 @@ export class RoomManager extends EventEmitter {
 
   get size() {
     return this.#rooms.size;
+  }
+
+  [Symbol.iterator]() {
+    return this.#rooms.values();
   }
 
   closeAll() {

@@ -1,4 +1,4 @@
-import { ARENA } from "../sim/arena.js";
+import { ARENA } from "@skyduel/shared/sim/arena.js";
 
 const clouds = makeClouds(14, 7);
 

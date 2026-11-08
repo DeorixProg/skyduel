@@ -26,6 +26,8 @@ export class Connection extends EventTarget {
     this.maxQueue = maxQueue;
     this.WebSocketImpl = WebSocketImpl;
     this.reconnects = 0;
+    this.bytesIn = 0; // counters for the netgraph
+    this.bytesOut = 0;
   }
 
   get connected() {
@@ -35,6 +37,7 @@ export class Connection extends EventTarget {
   connect() {
     this.#closedByUser = false;
     const ws = new this.WebSocketImpl(this.url);
+    ws.binaryType = "arraybuffer"; // snapshots arrive as ArrayBuffer, ready for DataView
     this.#ws = ws;
     ws.onopen = () => {
       this.#attempt = 0;
@@ -42,6 +45,12 @@ export class Connection extends EventTarget {
       for (const msg of this.#queue.splice(0)) ws.send(msg);
     };
     ws.onmessage = (e) => {
+      if (e.data instanceof ArrayBuffer) {
+        this.bytesIn += e.data.byteLength;
+        this.dispatchEvent(new CustomEvent("binary", { detail: e.data }));
+        return;
+      }
+      this.bytesIn += e.data.length; // UTF-16 length ≈ bytes for our ASCII JSON
       let msg;
       try {
         msg = JSON.parse(e.data);
@@ -75,8 +84,18 @@ export class Connection extends EventTarget {
 
   send(msg) {
     const text = JSON.stringify(msg);
-    if (this.connected) this.#ws.send(text);
-    else if (this.#queue.length < this.maxQueue) this.#queue.push(text);
+    if (this.connected) {
+      this.bytesOut += text.length;
+      this.#ws.send(text);
+    } else if (this.#queue.length < this.maxQueue) this.#queue.push(text);
+  }
+
+  /** Real-time data (inputs): sent now or never — queuing stale inputs is useless. */
+  sendRaw(data) {
+    if (!this.connected) return false;
+    this.bytesOut += typeof data === "string" ? data.length : data.byteLength;
+    this.#ws.send(data);
+    return true;
   }
 
   close() {

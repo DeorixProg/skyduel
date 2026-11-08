@@ -1,0 +1,399 @@
+{
+ "extra": "lag=100&jitter=30&drop=0.02&chaos=1",
+ "summary": {
+  "Maksym": {
+   "rtt": 112.09999999962747,
+   "corrections": 120,
+   "corrP50": 0.11608871653732994,
+   "corrP95": 0.6456563143324708,
+   "corrMax": 1.0010137338879717,
+   "nonZero": 85,
+   "kbIn": 9.604209710736676,
+   "kbOut": 0.6865011699686234,
+   "bytesPerSnap": 289,
+   "pending": 7,
+   "underruns": 0,
+   "snapsPerSec": 28.87583391414765
+  },
+  "Sofiia": {
+   "rtt": 120.30000000074506,
+   "corrections": 120,
+   "corrP50": 0.10950683514600869,
+   "corrP95": 0.4994494539006692,
+   "corrMax": 1.011233778816621,
+   "nonZero": 82,
+   "kbIn": 9.590805258577822,
+   "kbOut": 0.7060775111884634,
+   "bytesPerSnap": 289,
+   "pending": 6,
+   "underruns": 0,
+   "snapsPerSec": 30.83043262058677
+  }
+ },
+ "samples": {
+  "Maksym": [
+   {
+    "rtt": 124.09999999962747,
+    "snapshotAge": 45,
+    "snapshotsPerSec": 0,
+    "bytesInPerSec": 0,
+    "bytesOutPerSec": 0,
+    "pending": 6,
+    "correction": 0,
+    "correctionMax1s": 0,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 228
+   },
+   {
+    "rtt": 133.30000000074506,
+    "snapshotAge": 4.599999999627471,
+    "snapshotsPerSec": 28.89309554644586,
+    "bytesInPerSec": 7856.929361354209,
+    "bytesOutPerSec": 696.4232340332985,
+    "pending": 6,
+    "correction": 0.07101694585989833,
+    "correctionMax1s": 0.34122609188041614,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 345
+   },
+   {
+    "rtt": 116.59999999962747,
+    "snapshotAge": 29,
+    "snapshotsPerSec": 30.96903096903097,
+    "bytesInPerSec": 11996.003996003998,
+    "bytesOutPerSec": 743.2567432567433,
+    "pending": 6,
+    "correction": 0.21767245518370415,
+    "correctionMax1s": 0.7753031444369436,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 424
+   },
+   {
+    "rtt": 125.09999999962747,
+    "snapshotAge": 13.300000000745058,
+    "snapshotsPerSec": 29,
+    "bytesInPerSec": 11531,
+    "bytesOutPerSec": 705,
+    "pending": 6,
+    "correction": 0.0050036586395263895,
+    "correctionMax1s": 0.7667264030867932,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 424
+   },
+   {
+    "rtt": 128.09999999962747,
+    "snapshotAge": 49,
+    "snapshotsPerSec": 29,
+    "bytesInPerSec": 11531,
+    "bytesOutPerSec": 705,
+    "pending": 6,
+    "correction": 0.000016052340035347195,
+    "correctionMax1s": 0.000051564599237375666,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 396
+   },
+   {
+    "rtt": 136.90000000037253,
+    "snapshotAge": 2,
+    "snapshotsPerSec": 29.967036260125024,
+    "bytesInPerSec": 12557.187094201056,
+    "bytesOutPerSec": 691.2396364002173,
+    "pending": 6,
+    "correction": 0.1771117808571977,
+    "correctionMax1s": 0.7472219943464005,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 340
+   },
+   {
+    "rtt": 107.5,
+    "snapshotAge": 6.300000000745058,
+    "snapshotsPerSec": 27.974822659595944,
+    "bytesInPerSec": 9825.157358373805,
+    "bytesOutPerSec": 703.3669697269837,
+    "pending": 6,
+    "correction": 0.30721678348599285,
+    "correctionMax1s": 1.2226600710538242,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 289
+   },
+   {
+    "rtt": 126.69999999925494,
+    "snapshotAge": 7.599999999627471,
+    "snapshotsPerSec": 28.92191084075152,
+    "bytesInPerSec": 8847.112795458852,
+    "bytesOutPerSec": 691.1339383669242,
+    "pending": 6,
+    "correction": 0.16093044516416077,
+    "correctionMax1s": 1.0010137338879717,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 266
+   },
+   {
+    "rtt": 94,
+    "snapshotAge": 45.90000000037253,
+    "snapshotsPerSec": 30,
+    "bytesInPerSec": 9120,
+    "bytesOutPerSec": 706,
+    "pending": 6,
+    "correction": 0.000013571333412600156,
+    "correctionMax1s": 0.27606295130634634,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 345
+   }
+  ],
+  "Sofiia": [
+   {
+    "rtt": 0,
+    "snapshotAge": 26.59999999962747,
+    "snapshotsPerSec": 0,
+    "bytesInPerSec": 0,
+    "bytesOutPerSec": 0,
+    "pending": 1,
+    "correction": 0,
+    "correctionMax1s": 0,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 228
+   },
+   {
+    "rtt": 101.09999999962747,
+    "snapshotAge": 10.299999998882413,
+    "snapshotsPerSec": 29.86857825566395,
+    "bytesInPerSec": 7938.072481080289,
+    "bytesOutPerSec": 734.7670250893332,
+    "pending": 5,
+    "correction": 0.24454296541327658,
+    "correctionMax1s": 0.6824926391369476,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 345
+   },
+   {
+    "rtt": 110.19999999925494,
+    "snapshotAge": 0.09999999962747097,
+    "snapshotsPerSec": 28.99130260919564,
+    "bytesInPerSec": 10912.726182137227,
+    "bytesOutPerSec": 681.7954613610837,
+    "pending": 5,
+    "correction": 0.00007631196086909604,
+    "correctionMax1s": 0.7641140650561417,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 424
+   },
+   {
+    "rtt": 121.59999999962747,
+    "snapshotAge": 25.299999998882413,
+    "snapshotsPerSec": 28.997100289981805,
+    "bytesInPerSec": 11642.835716432695,
+    "bytesOutPerSec": 704.9295070495577,
+    "pending": 5,
+    "correction": 0.08383772837582976,
+    "correctionMax1s": 0.6614421240495747,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 424
+   },
+   {
+    "rtt": 121.20000000111759,
+    "snapshotAge": 49,
+    "snapshotsPerSec": 30.824301481577972,
+    "bytesInPerSec": 12893.50701005231,
+    "bytesOutPerSec": 701.998607935292,
+    "pending": 6,
+    "correction": 0.33433772390099414,
+    "correctionMax1s": 0.6669500233634321,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 396
+   },
+   {
+    "rtt": 128.69999999925494,
+    "snapshotAge": 29.200000001117587,
+    "snapshotsPerSec": 28.976818545142297,
+    "bytesInPerSec": 11622.701838520523,
+    "bytesOutPerSec": 692.4460431649521,
+    "pending": 6,
+    "correction": 0.3557980619130172,
+    "correctionMax1s": 11.459393366302809,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 340
+   },
+   {
+    "rtt": 98.89999999850988,
+    "snapshotAge": 0.40000000037252903,
+    "snapshotsPerSec": 28.997100289981805,
+    "bytesInPerSec": 9898.01019898379,
+    "bytesOutPerSec": 690.9309069095665,
+    "pending": 6,
+    "correction": 0.00000516391013343828,
+    "correctionMax1s": 0.8071895044988506,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 289
+   },
+   {
+    "rtt": 116.29999999888241,
+    "snapshotAge": 16,
+    "snapshotsPerSec": 29.821073558648113,
+    "bytesInPerSec": 8997.017892644135,
+    "bytesOutPerSec": 699.8011928429423,
+    "pending": 6,
+    "correction": 0.309563067141939,
+    "correctionMax1s": 0.052584620944160325,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 266
+   },
+   {
+    "rtt": 114.09999999962747,
+    "snapshotAge": 13.399999998509884,
+    "snapshotsPerSec": 29.84183825721453,
+    "bytesInPerSec": 9153.486521429604,
+    "bytesOutPerSec": 701.2831990445414,
+    "pending": 5,
+    "correction": 0.0737608390193115,
+    "correctionMax1s": 0.5654181178355082,
+    "interpDelayMs": 100,
+    "underruns": 0,
+    "codec": "binary",
+    "predict": true,
+    "netsim": {
+     "lag": 100,
+     "jitter": 30,
+     "drop": 0.02
+    },
+    "lastSnapshotBytes": 345
+   }
+  ]
+ }
+}

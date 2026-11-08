@@ -6,13 +6,13 @@ import os from "node:os";
 import path from "node:path";
 import { Readable } from "node:stream";
 import { after, before, describe, test } from "node:test";
+import { CLOSE, parseMessage } from "@skyduel/shared/protocol.js";
 import { WebSocket } from "ws";
 import { createApp } from "../src/app.js";
 import { loadConfig } from "../src/config.js";
 import { toNdjson } from "../src/log/matchlog.js";
 import { readEvents } from "../src/log/replay.js";
 import { createLogger } from "../src/logger.js";
-import { CLOSE, parseMessage } from "../src/protocol.js";
 import { createTokenBucket } from "../src/ratelimit.js";
 import { RoomManager } from "../src/rooms.js";
 
@@ -136,7 +136,9 @@ describe("server (integration)", () => {
   const connect = async () => {
     const ws = new WebSocket(`ws://${base}/ws`);
     ws.inbox = [];
-    ws.on("message", (d) => ws.inbox.push(JSON.parse(d.toString())));
+    ws.on("message", (d, isBinary) => {
+      if (!isBinary) ws.inbox.push(JSON.parse(d.toString()));
+    });
     await once(ws, "open");
     return ws;
   };

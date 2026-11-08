@@ -6,6 +6,7 @@ import { Lobby } from "./lobby/lobby.js";
 import { mountLobbyView } from "./lobby/lobby-view.js";
 import { mountRoomView } from "./lobby/room-view.js";
 import { Connection, wsUrl } from "./net/connection.js";
+import { startNetGame } from "./net/netgame.js";
 import { setupCanvas } from "./render/canvas.js";
 import { drawLoading } from "./render/loading.js";
 import { createSprites } from "./render/sprites.js";
@@ -24,6 +25,14 @@ import { createSprites } from "./render/sprites.js";
  *   ?roomslag=1500 /api/rooms answers in 1.5 s (to catch a request in flight on leave)
  *   ?netlag=150    every asset response delayed 150 ms (timing experiment)
  *   ?load=seq      sequential awaits instead of Promise.all (timing experiment)
+ *
+ * Lab 5 network switches:
+ *   ?lag=100&jitter=30&drop=0.02   server-side latency injector for this connection
+ *   ?codec=json                    JSON snapshots/inputs instead of binary
+ *   ?predict=0                     no client-side prediction (ship moves only on snapshots)
+ *   ?interp=100                    interpolation delay, ms (also [ and ] keys)
+ *   ?chaos=1                       Math.random() inside integrate (determinism-break experiment)
+ *   ?offline=1                     the local single-player game from Labs 1–3
  */
 const params = new URLSearchParams(location.search);
 const FAIL = params.get("fail");
@@ -143,15 +152,34 @@ function showLobby(sprites) {
     lobbyView.unmount();
     const { room, arena, name, warning } = e.detail;
     if (warning) console.warn(warning);
-    // Lab 4: the room lives on the server (roster + chat); the match is still local until Lab 5.
-    const conn = new Connection(wsUrl("/ws"));
-    conn.addEventListener("open", () => conn.send({ type: "join", room: room.id, name }));
+    // Lab 5: the match is simulated by the server; ?offline=1 keeps the local game of Labs 1–3.
+    if (params.has("offline")) {
+      window.__game = startGame({ view, input, sprites, audio, arena, name, params });
+      return;
+    }
+    const netsim = new URLSearchParams();
+    for (const k of ["lag", "jitter", "drop"]) if (params.has(k)) netsim.set(k, params.get(k));
+    const conn = new Connection(wsUrl(`/ws${netsim.size ? `?${netsim}` : ""}`));
+    const codec = params.get("codec") === "json" ? "json" : "binary";
+    conn.addEventListener("open", () => conn.send({ type: "join", room: room.id, name, codec }));
     const roomView = mountRoomView(roomRoot, conn, { room, selfName: name });
+    conn.addEventListener("welcome", (ev) => {
+      window.__game?.stop?.(); // after a reconnect the server gives us a new ship
+      window.__game = startNetGame({
+        view,
+        input,
+        sprites,
+        audio,
+        arena,
+        conn,
+        welcome: ev.detail,
+        params,
+      });
+    });
     conn.addEventListener("close", (ev) => {
       if (!ev.detail.willRetry && ev.detail.code !== 1000) console.warn("room closed", ev.detail);
     });
     conn.connect();
-    window.__game = startGame({ view, input, sprites, audio, arena, name, params });
     window.__conn = conn;
     window.__roomView = roomView;
   });

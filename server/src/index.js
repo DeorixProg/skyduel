@@ -1,3 +1,4 @@
+import { SIM_FLAGS } from "@skyduel/shared/sim/ship.js";
 import { createApp } from "./app.js";
 import { loadConfig } from "./config.js";
 import { createLogger, errFields } from "./logger.js";
@@ -11,6 +12,9 @@ try {
   logger.error(errFields(err), "refusing to start");
   process.exit(1);
 }
+
+// Lab 5 experiment only: Math.random() inside integrate on the server side too
+if (process.env.SIM_CHAOS === "1") SIM_FLAGS.chaos = true;
 
 const app = createApp({ config, logger });
 const addr = await app.listen();

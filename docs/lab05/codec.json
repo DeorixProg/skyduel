@@ -1,0 +1,27 @@
+{
+ "live": {
+  "json": {
+   "bytesPerSnapshot": 3726.890365448505,
+   "kbDown": 109.5501953125,
+   "kbUp": 3.7552734375,
+   "snapsPerSec": 30.1
+  },
+  "binary": {
+   "bytesPerSnapshot": 505.5249169435216,
+   "kbDown": 14.85966796875,
+   "kbUp": 0.43916015625,
+   "snapsPerSec": 30.1
+  }
+ },
+ "micro": {
+  "entities": 29,
+  "json": {
+   "bytes": 5151,
+   "us": 33.594524999999884
+  },
+  "binary": {
+   "bytes": 777,
+   "us": 5.537904999999955
+  }
+ }
+}
