@@ -1,24 +1,39 @@
 name: Deploy
 
 # A tag v* builds the image, publishes it to GHCR and deploys it.
+# workflow_dispatch builds an EXISTING tag again (e.g. when several tags were pushed at
+# once — GitHub does not fire tag events for more than three tags in one push).
 # The CI workflow still gates every push; this one only runs for releases.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to build and deploy (e.g. v1.0.0)"
+        required: true
 
 permissions:
   contents: read
   packages: write
+
+env:
+  RELEASE: ${{ inputs.tag || github.ref_name }}
 
 jobs:
   image:
     runs-on: ubuntu-latest
     outputs:
       image: ${{ steps.meta.outputs.image }}
+      sha: ${{ steps.meta.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ env.RELEASE }}
       - id: meta
-        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -29,16 +44,25 @@ jobs:
           context: .
           push: true
           build-args: |
-            GIT_SHA=${{ github.sha }}
-            GIT_TAG=${{ github.ref_name }}
+            GIT_SHA=${{ steps.meta.outputs.sha }}
+            GIT_TAG=${{ env.RELEASE }}
           tags: |
-            ${{ steps.meta.outputs.image }}:${{ github.ref_name }}
+            ${{ steps.meta.outputs.image }}:${{ env.RELEASE }}
             ${{ steps.meta.outputs.image }}:latest
-      - name: Image size (README asks for < 200 MB)
+      - name: Image size (README asks for < 200 MB) and a smoke test of the image
         run: |
-          docker pull "${{ steps.meta.outputs.image }}:${{ github.ref_name }}"
-          docker image inspect "${{ steps.meta.outputs.image }}:${{ github.ref_name }}" --format '{{.Size}}' \
-            | awk '{ printf "### Image size: %.1f MB\n", $1/1048576 }' >> "$GITHUB_STEP_SUMMARY"
+          img="${{ steps.meta.outputs.image }}:${{ env.RELEASE }}"
+          docker pull "$img"
+          docker image inspect "$img" --format '{{.Size}}' \
+            | awk '{ printf "### Image size: %.1f MB\n", $1/1048576 }' | tee -a "$GITHUB_STEP_SUMMARY"
+          docker run -d --name smoke -p 8080:8080 "$img"
+          for i in $(seq 1 30); do curl -fsS http://localhost:8080/health && break; sleep 1; done
+          echo; docker inspect --format '{{.Config.User}} healthcheck={{json .Config.Healthcheck.Test}}' smoke | tee -a "$GITHUB_STEP_SUMMARY"
+          start=$(date +%s%3N); docker stop smoke >/dev/null; stop_ms=$(( $(date +%s%3N) - start ))
+          code=$(docker inspect --format '{{.State.ExitCode}}' smoke)
+          echo "docker stop: ${stop_ms} ms, exit code ${code}" | tee -a "$GITHUB_STEP_SUMMARY"
+          docker logs smoke 2>&1 | tail -3 | tee -a "$GITHUB_STEP_SUMMARY"
+          test "$code" = "0"
 
   deploy:
     needs: image
@@ -47,12 +71,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: superfly/flyctl-actions/setup-flyctl@master
-      - run: flyctl deploy --image "${{ needs.image.outputs.image }}:${{ github.ref_name }}" --remote-only
+      - run: flyctl deploy --image "${{ needs.image.outputs.image }}:${{ env.RELEASE }}" --remote-only
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       - name: The live /health must report the tag's commit
         run: |
           sleep 20
           sha=$(curl -fsS https://skyduel.fly.dev/health | jq -r .version)
-          echo "live version: $sha, tag commit: ${GITHUB_SHA:0:12}"
-          test "$sha" = "${GITHUB_SHA:0:12}"
+          want="${{ needs.image.outputs.sha }}"
+          echo "live version: $sha, tag commit: ${want:0:12}"
+          test "$sha" = "${want:0:12}"
