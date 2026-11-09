@@ -1,0 +1,23 @@
+name: Uptime
+
+# A free uptime monitor without a third-party account: every 15 minutes GitHub
+# pings the live /health. Set the repository variable LIVE_URL (e.g. https://skyduel.fly.dev).
+# A failed run is the alert (GitHub e-mails the repository owner).
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    if: ${{ vars.LIVE_URL != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: GET /health
+        run: |
+          start=$(date +%s%3N)
+          body=$(curl -fsS --max-time 10 "${{ vars.LIVE_URL }}/health")
+          echo "health: $body ($(( $(date +%s%3N) - start )) ms)" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "$body" | jq -e '.status == "ok"'
+      - name: GET /ready
+        run: curl -fsS --max-time 10 "${{ vars.LIVE_URL }}/ready"
