@@ -54,6 +54,7 @@ export const ConfigSchema = z
       )
       .pipe(z.array(z.url())),
     MAX_CONNECTIONS: int(1, 100_000, 2000),
+    TRUST_PROXY: flag, // behind Cloudflare/Fly: take the client IP from CF-Connecting-IP / X-Forwarded-For
     MAX_CONNECTIONS_PER_IP: int(1, 10_000, 8),
   })
   .transform((e) => ({
@@ -77,6 +78,7 @@ export const ConfigSchema = z
         ? e.ALLOWED_ORIGINS
         : [`http://localhost:${e.PORT}`, `http://127.0.0.1:${e.PORT}`, "http://localhost:5173"],
     maxConnections: e.MAX_CONNECTIONS,
+    trustProxy: e.TRUST_PROXY,
     maxConnectionsPerIp: e.MAX_CONNECTIONS_PER_IP,
   }));
 

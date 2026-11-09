@@ -11,6 +11,7 @@ primary_region = "waw"
   LOG_LEVEL = "info"
   ALLOWED_ORIGINS = "https://skyduel.fly.dev"
   MAX_CONNECTIONS_PER_IP = "8"
+  TRUST_PROXY = "1"           # Fly's proxy sets the real client IP in X-Forwarded-For
 
 [http_service]
   internal_port = 8080

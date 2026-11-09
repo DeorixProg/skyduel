@@ -25,7 +25,7 @@ async function pilot(name, x) {
   });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log(name, "PAGEERROR", e.message));
-  await page.goto(`http://localhost:8080/?${extra}`);
+  await page.goto(`${process.env.BASE ?? "http://localhost:8080"}/?${extra}`);
   await page.waitForSelector("#lobby .room");
   await page.fill("#pilot", name);
   await page.click('#lobby .room[data-id="somme"]');

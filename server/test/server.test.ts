@@ -397,3 +397,17 @@ describe.skipIf(process.platform === "win32")(
     });
   },
 );
+
+describe("client IP behind a proxy", () => {
+  test("TRUST_PROXY takes CF-Connecting-IP / X-Forwarded-For, otherwise the socket address", async () => {
+    const { clientIp } = await import("../src/ws.ts");
+    const { IncomingMessage } = await import("node:http");
+    const { Socket } = await import("node:net");
+    const req = new IncomingMessage(new Socket());
+    req.headers["x-forwarded-for"] = "203.0.113.7, 10.0.0.1";
+    assert.equal(clientIp(req, true), "203.0.113.7");
+    req.headers["cf-connecting-ip"] = "198.51.100.4";
+    assert.equal(clientIp(req, true), "198.51.100.4");
+    assert.equal(clientIp(req, false), "?"); // not trusted: the header is ignored
+  });
+});

@@ -94,7 +94,7 @@ export function attachWebSocket({
       logger.warn({ origin }, "websocket origin rejected");
       return refuse(socket, "403 Forbidden", "bad_origin");
     }
-    const ip = req.socket.remoteAddress ?? "?";
+    const ip = clientIp(req, config.trustProxy);
     if ((perIp.get(ip) ?? 0) >= config.maxConnectionsPerIp)
       return refuse(socket, "429 Too Many Requests", "per_ip_cap");
     if (conns.size >= config.maxConnections)
@@ -205,7 +205,7 @@ export function attachWebSocket({
       link: createLink(parseNetSim(req.url ?? "/")),
     };
     conns.set(ws, conn);
-    let log = logger.child({ playerId: conn.id, ip: req.socket.remoteAddress });
+    let log = logger.child({ playerId: conn.id, ip: clientIp(req, config.trustProxy) });
     log.info({}, "connected");
 
     const close = (code: CloseCode, reason: string) => {
@@ -382,4 +382,21 @@ export function attachWebSocket({
       return new Promise((resolve) => wss.close(() => resolve()));
     },
   };
+}
+
+/**
+ * The client's address. Behind a proxy (Cloudflare tunnel, Fly) every socket comes from the
+ * proxy, so the per-IP cap would count ALL players as one (Lab 8 found this live). With
+ * TRUST_PROXY=1 the address set by the proxy is used — only enable it when the server is
+ * reachable solely through that proxy, otherwise anyone could spoof the header.
+ */
+export function clientIp(req: IncomingMessage, trustProxy: boolean): string {
+  if (trustProxy) {
+    const cf = req.headers["cf-connecting-ip"];
+    if (typeof cf === "string" && cf) return cf;
+    const xff = req.headers["x-forwarded-for"];
+    const first = (Array.isArray(xff) ? xff[0] : xff)?.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return req.socket.remoteAddress ?? "?";
 }
