@@ -16,10 +16,18 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const SIZE = { width: 1280, height: 720 };
 
 const startServer = () =>
-  spawn(process.execPath, ["server/src/index.ts"], { env: { ...process.env, PORT: String(PORT), LOG_LEVEL: "warn", MAX_PLAYERS_PER_ROOM: "16" }, stdio: "ignore" });
+  spawn(process.execPath, ["server/src/index.ts"], {
+    env: { ...process.env, PORT: String(PORT), LOG_LEVEL: "warn", MAX_PLAYERS_PER_ROOM: "16" },
+    stdio: "ignore",
+  });
 const healthy = async () => {
   for (let i = 0; i < 100; i++) {
-    if (await fetch(`${BASE}/health`).then((r) => r.ok).catch(() => false)) return;
+    if (
+      await fetch(`${BASE}/health`)
+        .then((r) => r.ok)
+        .catch(() => false)
+    )
+      return;
     await sleep(100);
   }
   throw new Error("server did not start");
@@ -56,7 +64,16 @@ async function fly(page, seconds) {
   let i = 0;
   while (Date.now() - t0 < seconds * 1000) {
     const p = i++ % 8;
-    await hold(page, p < 3 ? ["KeyW", "Space"] : p < 5 ? ["KeyW", "KeyA", "Space"] : p < 6 ? ["KeyW"] : ["KeyW", "KeyD", "Space"]);
+    await hold(
+      page,
+      p < 3
+        ? ["KeyW", "Space"]
+        : p < 5
+          ? ["KeyW", "KeyA", "Space"]
+          : p < 6
+            ? ["KeyW"]
+            : ["KeyW", "KeyD", "Space"],
+    );
     await sleep(500);
   }
   await hold(page, []);
@@ -64,20 +81,33 @@ async function fly(page, seconds) {
 
 let server = startServer();
 await healthy();
-const browser = await chromium.launch({ channel: "chrome", args: ["--mute-audio"], headless: false });
+const browser = await chromium.launch({
+  channel: "chrome",
+  args: ["--mute-audio"],
+  headless: false,
+});
 
 // ── part A: one player, full tour ─────────────────────────────────────────────
-const ctxA = await browser.newContext({ viewport: SIZE, recordVideo: { dir: `${TMP}/a`, size: SIZE } });
+const ctxA = await browser.newContext({
+  viewport: SIZE,
+  recordVideo: { dir: `${TMP}/a`, size: SIZE },
+});
 const page = await ctxA.newPage();
 await page.goto(BASE);
 await page.waitForSelector("#lobby .room");
-await caption(page, "SkyDuel — дуель біпланів у браузері. Лобі отримує кімнати з сервера (GET /api/rooms)");
+await caption(
+  page,
+  "SkyDuel — дуель біпланів у браузері. Лобі отримує кімнати з сервера (GET /api/rooms)",
+);
 await sleep(4000);
 await page.fill("#newroom", "Demo");
 await page.click("#create button");
 await sleep(800);
 await fetch(`${BASE}/api/rooms/night/bots`, { method: "POST", body: JSON.stringify({ count: 3 }) });
-await caption(page, "Кімнату можна створити (POST /api/rooms). У «Нічний патруль» додаємо 3 серверних ботів");
+await caption(
+  page,
+  "Кімнату можна створити (POST /api/rooms). У «Нічний патруль» додаємо 3 серверних ботів",
+);
 await sleep(3500);
 await page.fill("#pilot", "Maksym");
 await page.click('#lobby .room[data-id="night"]');
@@ -85,9 +115,15 @@ await page.click("#join");
 await page.waitForFunction(() => window.__game?.latest);
 await caption(page, "Бій: W — газ, A/D — поворот, Space — постріл. Сервер рахує світ 30 разів/с");
 await fly(page, 45);
-await caption(page, "Netgraph: RTT, вік знімка, байти/с, непідтверджені input, поправки звірки (зелені = 0)");
+await caption(
+  page,
+  "Netgraph: RTT, вік знімка, байти/с, непідтверджені input, поправки звірки (зелені = 0)",
+);
 await fly(page, 20);
-await caption(page, "Аеростати лопаються від 3 куль і лишають бонуси: S — щит, R — скорострільність, H — самонаведення");
+await caption(
+  page,
+  "Аеростати лопаються від 3 куль і лишають бонуси: S — щит, R — скорострільність, H — самонаведення",
+);
 await fly(page, 25);
 await page.keyboard.press("Enter");
 await page.keyboard.type("Привіт з демо-відео!");
@@ -101,23 +137,35 @@ await page.waitForSelector('#lobby .room[data-id="night"]');
 await page.click('#lobby .room[data-id="night"]');
 await page.click("#join");
 await page.waitForFunction(() => window.__game?.latest);
-await caption(page, "Інжектор мережі: +150 мс, ±15 мс, 2 % втрат. Свій літак відгукується миттєво — передбачення");
+await caption(
+  page,
+  "Інжектор мережі: +150 мс, ±15 мс, 2 % втрат. Свій літак відгукується миттєво — передбачення",
+);
 await fly(page, 15);
 await page.goto(`${BASE}/?lag=150&jitter=30&drop=0.02&predict=0`);
 await page.waitForSelector('#lobby .room[data-id="night"]');
 await page.click('#lobby .room[data-id="night"]');
 await page.click("#join");
 await page.waitForFunction(() => window.__game?.latest);
-await caption(page, "Те саме БЕЗ передбачення (?predict=0): літак рухається лише після знімка — запізнення ≈ 200 мс");
+await caption(
+  page,
+  "Те саме БЕЗ передбачення (?predict=0): літак рухається лише після знімка — запізнення ≈ 200 мс",
+);
 await fly(page, 12);
 
 // production endpoints
 await page.goto(`${BASE}/metrics`);
-await caption(page, "/metrics (Prometheus): гравці, кімнати, повідомлення/с, байти/с, крок p99, зайнятість циклу подій, RSS");
+await caption(
+  page,
+  "/metrics (Prometheus): гравці, кімнати, повідомлення/с, байти/с, крок p99, зайнятість циклу подій, RSS",
+);
 await page.mouse.wheel(0, 2200);
 await sleep(7000);
 await page.goto(`${BASE}/health`);
-await caption(page, "/health — живий процес і git SHA збірки; /ready — чи можна пускати нових гравців");
+await caption(
+  page,
+  "/health — живий процес і git SHA збірки; /ready — чи можна пускати нових гравців",
+);
 await sleep(5000);
 
 // chaos: kill the server mid-match
@@ -164,7 +212,10 @@ const t0 = Date.now();
 let i = 0;
 while (Date.now() - t0 < 45_000) {
   const phase = i++ % 10;
-  for (const [w, shift] of [[a.p, 0], [b.p, 5]]) {
+  for (const [w, shift] of [
+    [a.p, 0],
+    [b.p, 5],
+  ]) {
     const q = (phase + shift) % 10;
     await w.bringToFront();
     await w.keyboard[q < 7 ? "down" : "up"]("KeyW");
@@ -179,14 +230,69 @@ await browser.close();
 server.kill();
 
 // ── glue with ffmpeg ──────────────────────────────────────────────────────────
-const webm = (dir) => path.join(dir, fs.readdirSync(dir).find((f) => f.endsWith(".webm")));
+const webm = (dir) =>
+  path.join(
+    dir,
+    fs.readdirSync(dir).find((f) => f.endsWith(".webm")),
+  );
 const ff = (args) => {
   const r = spawnSync("ffmpeg", ["-v", "error", "-y", ...args], { stdio: "inherit" });
   if (r.status !== 0) throw new Error(`ffmpeg failed: ${args.join(" ")}`);
 };
-ff(["-i", webm(`${TMP}/a`), "-vf", "fps=30,format=yuv420p", "-c:v", "libx264", "-crf", "26", "-preset", "veryfast", `${TMP}/a.mp4`]);
-ff(["-i", webm(`${TMP}/b1`), "-i", webm(`${TMP}/b2`), "-filter_complex", "[0:v]trim=start=2,setpts=PTS-STARTPTS[l];[1:v]trim=start=1,setpts=PTS-STARTPTS[r];[l][r]hstack=inputs=2,fps=30,format=yuv420p,trim=duration=45", "-c:v", "libx264", "-crf", "26", "-preset", "veryfast", `${TMP}/b.mp4`]);
-fs.writeFileSync(`${TMP}/list.txt`, `file '${TMP.replaceAll("\\", "/")}/a.mp4'\nfile '${TMP.replaceAll("\\", "/")}/b.mp4'\n`);
-ff(["-f", "concat", "-safe", "0", "-i", `${TMP}/list.txt`, "-c", "copy", "-movflags", "+faststart", `${OUT}/demo.mp4`]);
-const probe = spawnSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `${OUT}/demo.mp4`], { encoding: "utf8" });
-console.log("demo.mp4", (fs.statSync(`${OUT}/demo.mp4`).size / 1048576).toFixed(1), "MB,", Number(probe.stdout).toFixed(0), "s");
+ff([
+  "-i",
+  webm(`${TMP}/a`),
+  "-vf",
+  "fps=30,format=yuv420p",
+  "-c:v",
+  "libx264",
+  "-crf",
+  "26",
+  "-preset",
+  "veryfast",
+  `${TMP}/a.mp4`,
+]);
+ff([
+  "-i",
+  webm(`${TMP}/b1`),
+  "-i",
+  webm(`${TMP}/b2`),
+  "-filter_complex",
+  "[0:v]trim=start=2,setpts=PTS-STARTPTS[l];[1:v]trim=start=1,setpts=PTS-STARTPTS[r];[l][r]hstack=inputs=2,fps=30,format=yuv420p,trim=duration=45",
+  "-c:v",
+  "libx264",
+  "-crf",
+  "26",
+  "-preset",
+  "veryfast",
+  `${TMP}/b.mp4`,
+]);
+fs.writeFileSync(
+  `${TMP}/list.txt`,
+  `file '${TMP.replaceAll("\\", "/")}/a.mp4'\nfile '${TMP.replaceAll("\\", "/")}/b.mp4'\n`,
+);
+ff([
+  "-f",
+  "concat",
+  "-safe",
+  "0",
+  "-i",
+  `${TMP}/list.txt`,
+  "-c",
+  "copy",
+  "-movflags",
+  "+faststart",
+  `${OUT}/demo.mp4`,
+]);
+const probe = spawnSync(
+  "ffprobe",
+  ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `${OUT}/demo.mp4`],
+  { encoding: "utf8" },
+);
+console.log(
+  "demo.mp4",
+  (fs.statSync(`${OUT}/demo.mp4`).size / 1048576).toFixed(1),
+  "MB,",
+  Number(probe.stdout).toFixed(0),
+  "s",
+);

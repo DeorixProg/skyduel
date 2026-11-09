@@ -30,6 +30,9 @@ interface Conn {
   codec: "binary" | "json";
   bytesOut: number;
   missedPongs: number;
+  /** Network RTT measured by the server itself (WebSocket ping → pong), ms. */
+  pingAt: number;
+  readonly rtt: number[];
   readonly bucket: TokenBucket;
   readonly link: Link;
 }
@@ -196,6 +199,8 @@ export function attachWebSocket({
       codec: "binary",
       bytesOut: 0,
       missedPongs: 0,
+      pingAt: 0,
+      rtt: [],
       bucket: createTokenBucket({ rate: config.msgRate, burst: config.msgBurst }),
       link: createLink(parseNetSim(req.url ?? "/")),
     };
@@ -218,6 +223,11 @@ export function attachWebSocket({
 
     ws.on("pong", () => {
       conn.missedPongs = 0;
+      if (conn.pingAt) {
+        conn.rtt.push(performance.now() - conn.pingAt); // real-world RTT of THIS player (Lab 8)
+        if (conn.rtt.length > 240) conn.rtt.shift();
+        conn.pingAt = 0;
+      }
     });
 
     const applyInputs = (inputs: readonly Input[]) =>
@@ -334,7 +344,13 @@ export function attachWebSocket({
         conn.room = null;
       }
       conns.delete(ws);
-      log.info({ code }, "disconnected");
+      const sorted = [...conn.rtt].sort((a, b) => a - b);
+      const at = (q: number) =>
+        Math.round(sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))] ?? 0);
+      log.info(
+        { code, rttSamples: sorted.length, rttP50: at(0.5), rttP95: at(0.95) },
+        "disconnected",
+      );
     });
   });
 
@@ -347,6 +363,7 @@ export function attachWebSocket({
         continue;
       }
       conn.missedPongs++;
+      conn.pingAt = performance.now();
       ws.ping();
     }
   }, config.heartbeatMs);
